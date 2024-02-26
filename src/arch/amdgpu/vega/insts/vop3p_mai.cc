@@ -192,17 +192,19 @@ namespace VegaISA
     Inst_VOP3P_MAI__V_MFMA_F64_16X16X4F64::execute(GPUDynInstPtr gpuDynInst)
     {
         // Accumulation register offsets for A, B, and C/D matrix.
-        int a_offset = 0;
-        int b_offset = 0;
-        int cd_offset = 0;
+        int acc_cd_off = 0;
+        int acc_a_off = 0;
+        int acc_b_off = 0;
         if (instData.ACC_CD) {
-            cd_offset = gpuDynInst->wavefront()->accumOffset;
+            acc_cd_off = gpuDynInst->wavefront()->accumOffset;
         }
         if (extData.ACC) {
-            if (extData.ACC & 0x1) {
-                a_offset = gpuDynInst->wavefront()->accumOffset;
-            } else if (extData.ACC & 0x2) {
-                b_offset = gpuDynInst->wavefront()->accumOffset;
+            int tmp_acc = extData.ACC;
+            if (tmp_acc & 0x1) {
+                acc_a_off = gpuDynInst->wavefront()->accumOffset;
+            }
+            if (tmp_acc & 0x2) {
+                acc_b_off = gpuDynInst->wavefront()->accumOffset;
             }
         }
 
@@ -213,20 +215,20 @@ namespace VegaISA
         // a delta for each of the pairs of src2 GPRs.
         int delta = isVectorReg(extData.SRC2) ? 2 : 0;
 
-        ConstVecOperandF64 src0(gpuDynInst, extData.SRC0+a_offset);
-        ConstVecOperandF64 src1(gpuDynInst, extData.SRC1+b_offset);
+        ConstVecOperandF64 src0(gpuDynInst, extData.SRC0+acc_a_off);
+        ConstVecOperandF64 src1(gpuDynInst, extData.SRC1+acc_b_off);
         ConstVecOperandF64 src2[4] = {
-            ConstVecOperandF64(gpuDynInst, extData.SRC2+cd_offset),
-            ConstVecOperandF64(gpuDynInst, extData.SRC2+cd_offset+1*delta),
-            ConstVecOperandF64(gpuDynInst, extData.SRC2+cd_offset+2*delta),
-            ConstVecOperandF64(gpuDynInst, extData.SRC2+cd_offset+3*delta),
+            ConstVecOperandF64(gpuDynInst, extData.SRC2+acc_cd_off),
+            ConstVecOperandF64(gpuDynInst, extData.SRC2+acc_cd_off+1*delta),
+            ConstVecOperandF64(gpuDynInst, extData.SRC2+acc_cd_off+2*delta),
+            ConstVecOperandF64(gpuDynInst, extData.SRC2+acc_cd_off+3*delta),
         };
 
         VecOperandF64 vdst[4] = {
-            VecOperandF64(gpuDynInst, instData.VDST+cd_offset),
-            VecOperandF64(gpuDynInst, instData.VDST+cd_offset+2),
-            VecOperandF64(gpuDynInst, instData.VDST+cd_offset+4),
-            VecOperandF64(gpuDynInst, instData.VDST+cd_offset+6),
+            VecOperandF64(gpuDynInst, instData.VDST+acc_cd_off),
+            VecOperandF64(gpuDynInst, instData.VDST+acc_cd_off+2),
+            VecOperandF64(gpuDynInst, instData.VDST+acc_cd_off+4),
+            VecOperandF64(gpuDynInst, instData.VDST+acc_cd_off+6),
         };
 
         src0.readSrc();
@@ -236,42 +238,55 @@ namespace VegaISA
             src2[i].readSrc();
         }
 
-        double result[16][16];
+        // These values and meanings are described in the MI300 ISA manual:
+        //
+        // https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/
+        //    instruction-set-architectures/
+        //    amd-instinct-mi300-cdna3-instruction-set-architecture.pdf
+        //
+        // in section 7.1.4.2. In theory, only the M, N, K, and H values change
+        // for each MFMA instruction and therefore this could be templated.
+        constexpr int M = 16;
+        constexpr int N = 16;
+        constexpr int K = 4;
+
+        constexpr int H = 1;
+        constexpr int B_I = std::ceil(64.0f / (N * M / H));
+        constexpr int M_I = (64 / B_I) / N;
+        constexpr int G = M / (H * M_I);
+
+        float result[M][N];
+        int b = 0; // One block
 
         // Load src2 into result. src2 is row major
-        for (int i = 0; i < 64; ++i) {
-            // src2[0] contains rows 0 - 3
-            result[(i/16)][(i%16)] = src2[0][i];
-            // src2[1] contains rows 4 - 7
-            result[(i/16)+4][(i%16)] = src2[1][i];
-            // src2[2] contains rows 8 - 11
-            result[(i/16)+8][(i%16)] = src2[2][i];
-            // src2[3] contains rows 12 - 15
-            result[(i/16)+12][(i%16)] = src2[3][i];
+        for (int i = 0; i < M; ++i) {
+            for (int j = 0; j < N; ++j) {
+                int item = (i % H) + H * (i/(H*M_I) + G * (b / B_I));
+                int lane = j + N * ((i / H) % M_I + M_I * (b % B_I));
+
+                result[i][j] = src2[item][lane];
+            }
         }
 
         // Compute new result
-        for (int i = 0; i < 16; ++i) {
-            for (int j = 0; j < 16; ++j) {
-                for (int k = 0; k < 4; ++k) {
+        for (int i = 0; i < M; ++i) {
+            for (int j = 0; j < N; ++j) {
+                for (int k = 0; k < K; ++k) {
                     // src0 is column major, src1 is row major
-                    int lane_A = 16*k + i;
-                    int lane_B = 16*k + j;
+                    int lane_A = M*k + i;
+                    int lane_B = N*k + j;
                     result[i][j] += src0[lane_A] * src1[lane_B];
                 }
             }
         }
 
-        // Put result in dest VGPRs
-        for (int i = 0; i < 64; ++i) {
-            // vdst[0] contains rows 0 - 3
-            vdst[0][i] = result[(i/16)][(i%16)];
-            // src2[1] contains rows 4 - 7
-            vdst[1][i] = result[(i/16)+4][(i%16)];
-            // src2[2] contains rows 8 - 11
-            vdst[2][i] = result[(i/16)+8][(i%16)];
-            // src2[3] contains rows 12 - 15
-            vdst[3][i] = result[(i/16)+12][(i%16)];
+        for (int i = 0; i < M; ++i) {
+            for (int j = 0; j < N; ++j) {
+                int item = (i % H) + H * (i/(H*M_I) + G * (b / B_I));
+                int lane = j + N * ((i / H) % M_I + M_I * (b % B_I));
+
+                vdst[item][lane] = result[i][j];
+            }
         }
 
         for (int i = 0; i < 4; ++i) {
