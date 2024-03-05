@@ -399,5 +399,286 @@ namespace VegaISA
             vdst[i].write();
         }
     } // execute
+
+    // --- Inst_VOP3P_MAI__V_MFMA_F32_16X16X4F32 class methods ---
+
+    Inst_VOP3P_MAI__V_MFMA_F32_4X4X1_16B_F32::
+        Inst_VOP3P_MAI__V_MFMA_F32_4X4X1_16B_F32(InFmt_VOP3P_MAI *iFmt)
+        : Inst_VOP3P_MAI(iFmt, "v_mfma_f32_4x4x1_16b_f32")
+    {
+        setFlag(ALU);
+    } // Inst_VOP3P_MAI__V_MFMA_F32_16X16X4F32
+
+    Inst_VOP3P_MAI__V_MFMA_F32_4X4X1_16B_F32::
+        ~Inst_VOP3P_MAI__V_MFMA_F32_4X4X1_16B_F32()
+    {
+    } // ~Inst_VOP3P_MAI__V_MFMA_F32_16X16X4F32
+
+    // D(16x16F32) = A(16x4F32) x B(4x16F32) + C(16x16F32), 1 Blocks, 8
+    // pass, srcA/srcB 2 VGPR, srcC/D 8 VGPR
+    void
+    Inst_VOP3P_MAI__V_MFMA_F32_4X4X1_16B_F32::execute(GPUDynInstPtr gpuDynInst)
+    {
+        int acc_cd_off = 0;
+        int acc_a_off = 0;
+        int acc_b_off = 0;
+        if (instData.ACC_CD) {
+            acc_cd_off = gpuDynInst->wavefront()->accumOffset;
+        }
+        if (extData.ACC) {
+            int tmp_acc = extData.ACC;
+            if (tmp_acc & 0x1) {
+                acc_a_off = gpuDynInst->wavefront()->accumOffset;
+            }
+            if (tmp_acc & 0x2) {
+                acc_b_off = gpuDynInst->wavefront()->accumOffset;
+            }
+        }
+
+        // Handling of src2 is a bit tricky. The operator[] overload cannot
+        // be used for dword count > 2, and the dword count here is 4. Usually
+        // src2 is a VGPR/AccGPR, but it might also be constant. In order to
+        // use operator[] and handle constants, check for VGPR here and set
+        // a delta for each of the src2 GPRs.
+        int delta = isVectorReg(extData.SRC2) ? 1 : 0;
+
+        ConstVecOperandF32 src0(gpuDynInst, extData.SRC0+acc_a_off);
+        ConstVecOperandF32 src1(gpuDynInst, extData.SRC1+acc_b_off);
+
+        ConstVecOperandF32 src2[4] = {
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+1*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+2*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+3*delta)
+        };
+
+        VecOperandF32 vdst[4] = {
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+1),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+2),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+3)
+        };
+
+        src0.readSrc();
+        src1.readSrc();
+        for (int i = 0; i < 4; ++i) {
+            src2[i].readSrc();
+        }
+
+        // These values and meanings are described in the MI300 ISA manual:
+        //
+        // https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/
+        //    instruction-set-architectures/
+        //    amd-instinct-mi300-cdna3-instruction-set-architecture.pdf
+        //
+        // in section 7.1.4.2. In theory, only the M, N, K, and H values change
+        // for each MFMA instruction and therefore this could be templated.
+        constexpr int M = 4;
+        constexpr int N = 4;
+        constexpr int K = 1;
+
+        // Output layout
+        constexpr int H = 4;
+        constexpr int B_I = std::ceil(64.0f / (N * M / H));
+        constexpr int M_I = (64 / B_I) / N;
+        constexpr int G = M / (H * M_I);
+
+        float result[M][N];
+        constexpr int b = 16; // 16 blocks
+
+        // Input layout
+        constexpr int K_L = K / (64 / (M * b));
+        
+        for (int block = 0; block < b; block++) {
+            // Load src2 into result. src2 is row major
+            for (int i = 0; i < M; ++i) {
+                for (int j = 0; j < N; ++j) {
+                    int item = (i % H) + H * (i/(H*M_I) + G * (block / B_I));
+                    int lane = j + N * ((i / H) % M_I + M_I * (block % B_I));
+
+                    result[i][j] = src2[item][lane];
+                }
+            }
+
+            // Compute new result
+            for (int i = 0; i < M; ++i) {
+                for (int j = 0; j < N; ++j) {
+                    for (int k = 0; k < K; ++k) {
+                        // int item = k % K_L;
+                        // src0 is column major, src1 is row major
+                        int lane_A = i + M * (block + b * (k / K_L));
+                        int lane_B = j + N * (block + b * (k / K_L));
+                        result[i][j] += src0[lane_A] * src1[lane_B];
+                    }
+                }
+            }
+
+            for (int i = 0; i < M; ++i) {
+                for (int j = 0; j < N; ++j) {
+                    int item = (i % H) + H * (i/(H*M_I) + G * (block / B_I));
+                    int lane = j + N * ((i / H) % M_I + M_I * (block % B_I));
+
+                    vdst[item][lane] = result[i][j];
+                }
+            }
+
+            for (int i = 0; i < 4; ++i) {
+                vdst[i].write();
+            }
+        }
+    } // execute
+
+    // --- Inst_VOP3P_MAI__V_MFMA_F32_16X16X4F32 class methods ---
+
+    Inst_VOP3P_MAI__V_MFMA_F32_32X32X2_F32::
+        Inst_VOP3P_MAI__V_MFMA_F32_32X32X2_F32(InFmt_VOP3P_MAI *iFmt)
+        : Inst_VOP3P_MAI(iFmt, "v_mfma_f32_32x32x2_f32")
+    {
+        setFlag(ALU);
+    } // Inst_VOP3P_MAI__V_MFMA_F32_16X16X4F32
+
+    Inst_VOP3P_MAI__V_MFMA_F32_32X32X2_F32::
+        ~Inst_VOP3P_MAI__V_MFMA_F32_32X32X2_F32()
+    {
+    } // ~Inst_VOP3P_MAI__V_MFMA_F32_16X16X4F32
+
+    // D(16x16F32) = A(16x4F32) x B(4x16F32) + C(16x16F32), 1 Blocks, 8
+    // pass, srcA/srcB 2 VGPR, srcC/D 8 VGPR
+    void
+    Inst_VOP3P_MAI__V_MFMA_F32_32X32X2_F32::execute(GPUDynInstPtr gpuDynInst)
+    {
+
+        int acc_cd_off = 0;
+        int acc_a_off = 0;
+        int acc_b_off = 0;
+        if (instData.ACC_CD) {
+            acc_cd_off = gpuDynInst->wavefront()->accumOffset;
+        }
+        if (extData.ACC) {
+            int tmp_acc = extData.ACC;
+            if (tmp_acc & 0x1) {
+                acc_a_off = gpuDynInst->wavefront()->accumOffset;
+            }
+            if (tmp_acc & 0x2) {
+                acc_b_off = gpuDynInst->wavefront()->accumOffset;
+            }
+        }
+
+        // Handling of src2 is a bit tricky. The operator[] overload cannot
+        // be used for dword count > 2, and the dword count here is 4. Usually
+        // src2 is a VGPR/AccGPR, but it might also be constant. In order to
+        // use operator[] and handle constants, check for VGPR here and set
+        // a delta for each of the src2 GPRs.
+        int delta = isVectorReg(extData.SRC2) ? 1 : 0;
+
+        ConstVecOperandF32 src0(gpuDynInst, extData.SRC0+acc_a_off);
+        ConstVecOperandF32 src1(gpuDynInst, extData.SRC1+acc_b_off);
+
+        ConstVecOperandF32 src2[16] = {
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+1*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+2*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+3*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+4*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+5*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+6*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+7*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+8*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+9*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+10*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+11*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+12*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+13*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+14*delta),
+            ConstVecOperandF32(gpuDynInst, extData.SRC2+acc_cd_off+15*delta)
+        };
+
+        VecOperandF32 vdst[16] = {
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+1),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+2),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+3),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+4),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+5),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+6),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+7),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+8),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+9),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+10),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+11),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+12),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+13),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+14),
+            VecOperandF32(gpuDynInst, instData.VDST+acc_cd_off+15),
+        };
+
+        src0.readSrc();
+        src1.readSrc();
+        for (int i = 0; i < 16; ++i) {
+            src2[i].readSrc();
+        }
+
+        // These values and meanings are described in the MI300 ISA manual:
+        //
+        // https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/
+        //    instruction-set-architectures/
+        //    amd-instinct-mi300-cdna3-instruction-set-architecture.pdf
+        //
+        // in section 7.1.4.2. In theory, only the M, N, K, and H values change
+        // for each MFMA instruction and therefore this could be templated.
+        constexpr int M = 32;
+        constexpr int N = 32;
+        constexpr int K = 2;
+
+        // Output layout
+        constexpr int H = 4;
+        constexpr int B_I = std::ceil(64.0f / (N * M / H));
+        constexpr int M_I = (64 / B_I) / N;
+        constexpr int G = M / (H * M_I);
+
+        float result[M][N];
+        constexpr int b = 1; // 1 blocks
+
+        // Input layout
+        constexpr int K_L = K / (64 / (M * b));
+        
+        for (int block = 0; block < b; block++) {
+            // Load src2 into result. src2 is row major
+            for (int i = 0; i < M; ++i) {
+                for (int j = 0; j < N; ++j) {
+                    int item = (i % H) + H * (i/(H*M_I) + G * (block / B_I));
+                    int lane = j + N * ((i / H) % M_I + M_I * (block % B_I));
+
+                    result[i][j] = src2[item][lane];
+                }
+            }
+
+            // Compute new result
+            for (int i = 0; i < M; ++i) {
+                for (int j = 0; j < N; ++j) {
+                    for (int k = 0; k < K; ++k) {
+                        // int item = k % K_L;
+                        // src0 is column major, src1 is row major
+                        int lane_A = i + M * (block + b * (k / K_L));
+                        int lane_B = j + N * (block + b * (k / K_L));
+                        result[i][j] += src0[lane_A] * src1[lane_B];
+                    }
+                }
+            }
+
+            for (int i = 0; i < M; ++i) {
+                for (int j = 0; j < N; ++j) {
+                    int item = (i % H) + H * (i/(H*M_I) + G * (block / B_I));
+                    int lane = j + N * ((i / H) % M_I + M_I * (block % B_I));
+
+                    vdst[item][lane] = result[i][j];
+                }
+            }
+
+            for (int i = 0; i < 16; ++i) {
+                vdst[i].write();
+            }
+        }
+    } // execute
 } // namespace VegaISA
 } // namespace gem5

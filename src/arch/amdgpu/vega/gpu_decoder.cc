@@ -3646,9 +3646,9 @@ namespace VegaISA
         &Decoder::decode_invalid,
         &Decoder::decode_invalid,
         &Decoder::decode_invalid,
+        &Decoder::decode_OP_VOP3P__V_MFMA_F32_4X4X1_16B_F32,
         &Decoder::decode_invalid,
-        &Decoder::decode_invalid,
-        &Decoder::decode_invalid,
+        &Decoder::decode_OP_VOP3P__V_MFMA_F32_32X32X2_F32,
         &Decoder::decode_OP_VOP3P__V_MFMA_F32_16X16X4F32,
         &Decoder::decode_invalid,
         &Decoder::decode_invalid,
@@ -13166,6 +13166,20 @@ namespace VegaISA
     Decoder::decode_OP_VOP3P__V_DOT8_U32_U4(MachInst iFmt)
     {
         return new Inst_VOP3P__V_DOT8_U32_U4(&iFmt->iFmt_VOP3P);
+    }
+
+    GPUStaticInst*
+    Decoder::decode_OP_VOP3P__V_MFMA_F32_32X32X2_F32(MachInst iFmt)
+    {
+        return new Inst_VOP3P_MAI__V_MFMA_F32_32X32X2_F32(
+                &iFmt->iFmt_VOP3P_MAI);
+    }
+
+    GPUStaticInst*
+    Decoder::decode_OP_VOP3P__V_MFMA_F32_4X4X1_16B_F32(MachInst iFmt)
+    {
+        return new Inst_VOP3P_MAI__V_MFMA_F32_4X4X1_16B_F32(
+                &iFmt->iFmt_VOP3P_MAI);
     }
 
     GPUStaticInst*
