@@ -247,6 +247,19 @@ def addAmdGPUOptions(parser):
         default="simple",
         help="register allocation policy (simple/dynamic)",
     )
+
+    parser.add_argument(
+        "--SegFaultDebug",
+        action="store_true",
+        help="checks for GPU seg fault before TLB access",
+    )
+
+    parser.add_argument(
+        "--FunctionalTLB",
+        action="store_true",
+        help="Assumes TLB has no latency",
+    )
+
     parser.add_argument(
         "--register-file-cache-size",
         type=int,
@@ -259,4 +272,67 @@ def addAmdGPUOptions(parser):
         # Set to a default of 41 from micro-benchmarks
         default=41,
         help="Latency for memtimes in scalar memory pipeline.",
+    )
+
+    parser.add_argument(
+        "--dgpu",
+        action="store_true",
+        default=False,
+        help="Configure the system as a dGPU instead of an APU."
+        "The dGPU config has its own local memory pool and is not "
+        "coherent with the host through hardware.  Data is "
+        "transfered from host to device memory using runtime calls "
+        "that copy data over a PCIe-like IO bus.",
+    )
+
+    parser.add_argument(
+        "--gfx-version",
+        type=str,
+        default="gfx902",
+        choices=["gfx900", "gfx902", "gfx908", "gfx90a"],
+        help="Gfx version for gpuNote: gfx902 is not fully supported by ROCm",
+    )
+
+    parser.add_argument(
+        "--vrf_lm_bus_latency",
+        type=int,
+        default=1,
+        help="Latency while accessing shared memory",
+    )
+
+    parser.add_argument(
+        "--max-cu-tokens",
+        type=int,
+        default=4,
+        help="Number of coalescer tokens per CU",
+    )
+
+    parser.add_argument(
+        "--mem-req-latency",
+        type=int,
+        default=50,
+        help="Latency for requests from the cu to ruby.",
+    )
+
+    parser.add_argument(
+        "--mem-resp-latency",
+        type=int,
+        default=50,
+        help="Latency for responses from ruby to the cu.",
+    )
+
+    parser.add_argument(
+        "--scalar-mem-req-latency",
+        type=int,
+        default=50,
+        help="Latency for scalar requests from the cu to ruby.",
+    )
+
+    parser.add_argument(
+        "--scalar-mem-resp-latency",
+        type=int,
+        # Set to 0 as the scalar cache response path does not model
+        # response latency yet and this parameter is currently not used
+        default=0,
+        help="Latency for scalar responses from ruby to the cu.",
     )
