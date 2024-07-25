@@ -61,16 +61,56 @@ namespace VegaISA
     template<> struct OpTraits<ScalarRegF64> { typedef double FloatT; };
     template<> struct OpTraits<ScalarRegU64> { typedef double FloatT; };
 
+    /**
+     * Operand type for VGPR indexing. VGPR indexing can be enabled for types
+     * of operand individually (src0, src1, src2, or dest). We need to know
+     * the type of the operand to know if a VGPR index should be added to the
+     * register index. Without this we cannot know the operand type. For
+     * example an instruction whose dest is the same as a source or two an
+     * instruction where two source operands have the same index cannot
+     * determine which source number or dest the operand is.
+     */
+    enum class OperandType
+    {
+        Unknown,
+        Vsrc0,
+        Vsrc1,
+        Vsrc2,
+        Vdst
+    };
+
     class Operand
     {
       public:
         Operand() = delete;
 
-        Operand(GPUDynInstPtr gpuDynInst, int opIdx)
+        Operand(GPUDynInstPtr gpuDynInst, int opIdx, OperandType opType)
             : _gpuDynInst(gpuDynInst), _opIdx(opIdx)
         {
             assert(_gpuDynInst);
+            assert(_gpuDynInst->wavefront());
             assert(_opIdx >= 0);
+
+            if (gpuDynInst->wavefront()->gprIndexEnable) {
+                panic_if(opType == OperandType::Unknown, "VGPR indexing is "
+                        "enabled but instruction has not specified operand "
+                        "type! - %s\n", _gpuDynInst->disassemble().c_str());
+                ScalarRegU32 m0_reg = _gpuDynInst->readMiscReg(REG_M0);
+
+                // Check if VGPR indexing is enabled for this OperandType.
+                // M0[12] enables Src0 indexing.
+                if (opType == OperandType::Vsrc0 && bits(m0_reg, 12)) {
+                    _opIdx += bits(m0_reg, 7, 0);
+                } else if (opType == OperandType::Vsrc1 && bits(m0_reg, 13)) {
+                    _opIdx += bits(m0_reg, 7, 0);
+                } else if (opType == OperandType::Vsrc2 && bits(m0_reg, 14)) {
+                    _opIdx += bits(m0_reg, 7, 0);
+                } else if (opType == OperandType::Vdst && bits(m0_reg, 15)) {
+                    _opIdx += bits(m0_reg, 7, 0);
+                } else {
+                    panic("Unknown VGPR indexing operand type\n");
+                }
+            }
         }
 
         /**
@@ -107,9 +147,10 @@ namespace VegaISA
       public:
         VecOperand() = delete;
 
-        VecOperand(GPUDynInstPtr gpuDynInst, int opIdx)
-            : Operand(gpuDynInst, opIdx), scalar(false), absMod(false),
-              negMod(false), scRegData(gpuDynInst, _opIdx),
+        VecOperand(GPUDynInstPtr gpuDynInst, int opIdx,
+                   OperandType opType = OperandType::Unknown)
+            : Operand(gpuDynInst, opIdx, opType), scalar(false),
+              absMod(false), negMod(false), scRegData(gpuDynInst, _opIdx),
               vrfData{{ nullptr }}
         {
             vecReg.zero();
@@ -370,8 +411,9 @@ namespace VegaISA
       public:
         ScalarOperand() = delete;
 
-        ScalarOperand(GPUDynInstPtr gpuDynInst, int opIdx)
-            : Operand(gpuDynInst, opIdx)
+        ScalarOperand(GPUDynInstPtr gpuDynInst, int opIdx,
+                      OperandType opType = OperandType::Unknown)
+            : Operand(gpuDynInst, opIdx, opType)
         {
             std::memset(srfData.data(), 0, NumDwords * sizeof(ScalarRegU32));
         }

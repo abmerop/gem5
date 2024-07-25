@@ -303,6 +303,10 @@ class Wavefront : public SimObject
     bool hasBarrier() const;
     void releaseBarrier();
 
+    // If VGPR indexing is enabled. This should be part of a mode register
+    // eventually when more of the mode register is supported.
+    bool gprIndexEnable = false;
+
   private:
     TheGpuISA::GPUISA _gpuISA;
 

@@ -1486,6 +1486,9 @@ namespace VegaISA
           InFmt_SOP1 *iFmt)
         : Inst_SOP1(iFmt, "s_set_gpr_idx_idx")
     {
+        // Need some flag set for scoreboard check stage. ALU has the least
+        // number of side effects compared to other flags.
+        setFlag(ALU);
     } // Inst_SOP1__S_SET_GPR_IDX_IDX
 
     Inst_SOP1__S_SET_GPR_IDX_IDX::~Inst_SOP1__S_SET_GPR_IDX_IDX()
@@ -1498,7 +1501,17 @@ namespace VegaISA
     void
     Inst_SOP1__S_SET_GPR_IDX_IDX::execute(GPUDynInstPtr gpuDynInst)
     {
-        panicUnimplemented();
+        ConstScalarOperandU32 src(gpuDynInst, instData.SSRC0);
+        ScalarOperandU32 m0(gpuDynInst, REG_M0);
+
+        src.read();
+        m0.read();
+
+        ScalarRegU32 tmp = m0.rawData();
+        replaceBits(tmp, 7, 0, bits(src.rawData(), 7, 0));
+        m0 = tmp;
+
+        m0.write();
     } // execute
 } // namespace VegaISA
 } // namespace gem5

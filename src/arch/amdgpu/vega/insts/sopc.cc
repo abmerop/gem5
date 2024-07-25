@@ -517,6 +517,9 @@ namespace VegaISA
     Inst_SOPC__S_SET_GPR_IDX_ON::Inst_SOPC__S_SET_GPR_IDX_ON(InFmt_SOPC *iFmt)
         : Inst_SOPC(iFmt, "s_set_gpr_idx_on")
     {
+        // Need some flag set for scoreboard check stage. ALU has the least
+        // number of side effects compared to other flags.
+        setFlag(ALU);
     } // Inst_SOPC__S_SET_GPR_IDX_ON
 
     Inst_SOPC__S_SET_GPR_IDX_ON::~Inst_SOPC__S_SET_GPR_IDX_ON()
@@ -537,7 +540,22 @@ namespace VegaISA
     void
     Inst_SOPC__S_SET_GPR_IDX_ON::execute(GPUDynInstPtr gpuDynInst)
     {
-        panicUnimplemented();
+        ConstScalarOperandU32 src0(gpuDynInst, instData.SSRC0);
+        ConstScalarOperandU32 src1(gpuDynInst, instData.SSRC1);
+        ScalarOperandU32 m0(gpuDynInst, REG_M0);
+
+        gpuDynInst->wavefront()->gprIndexEnable = false;
+
+        src0.read();
+        src1.read();
+        m0.read();
+
+        ScalarRegU32 tmp = m0.rawData();
+        replaceBits(tmp, 7, 0, bits(src0.rawData(), 7, 0));
+        replaceBits(tmp, 15, 12, bits(src1.rawData(), 3, 0));
+        m0 = tmp;
+
+        m0.write();
     } // execute
     // --- Inst_SOPC__S_CMP_EQ_U64 class methods ---
 

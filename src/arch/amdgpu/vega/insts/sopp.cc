@@ -879,6 +879,9 @@ namespace VegaISA
           InFmt_SOPP *iFmt)
         : Inst_SOPP(iFmt, "s_set_gpr_idx_off")
     {
+        // Need some flag set for scoreboard check stage. ALU has the least
+        // number of side effects compared to other flags.
+        setFlag(ALU);
     } // Inst_SOPP__S_SET_GPR_IDX_OFF
 
     Inst_SOPP__S_SET_GPR_IDX_OFF::~Inst_SOPP__S_SET_GPR_IDX_OFF()
@@ -893,7 +896,7 @@ namespace VegaISA
     void
     Inst_SOPP__S_SET_GPR_IDX_OFF::execute(GPUDynInstPtr gpuDynInst)
     {
-        panicUnimplemented();
+        gpuDynInst->wavefront()->gprIndexEnable = false;
     } // execute
     // --- Inst_SOPP__S_SET_GPR_IDX_MODE class methods ---
 
@@ -901,6 +904,9 @@ namespace VegaISA
           InFmt_SOPP *iFmt)
         : Inst_SOPP(iFmt, "s_set_gpr_idx_mode")
     {
+        // Need some flag set for scoreboard check stage. ALU has the least
+        // number of side effects compared to other flags.
+        setFlag(ALU);
     } // Inst_SOPP__S_SET_GPR_IDX_MODE
 
     Inst_SOPP__S_SET_GPR_IDX_MODE::~Inst_SOPP__S_SET_GPR_IDX_MODE()
@@ -916,7 +922,16 @@ namespace VegaISA
     void
     Inst_SOPP__S_SET_GPR_IDX_MODE::execute(GPUDynInstPtr gpuDynInst)
     {
-        panicUnimplemented();
+        ScalarRegI16 simm16 = instData.SIMM16;
+        ScalarOperandU32 m0(gpuDynInst, REG_M0);
+
+        m0.read();
+
+        ScalarRegU32 tmp = m0.rawData();
+        replaceBits(tmp, 15, 12, bits(simm16, 3, 0));
+        m0 = tmp;
+
+        m0.write();
     } // execute
 } // namespace VegaISA
 } // namespace gem5
