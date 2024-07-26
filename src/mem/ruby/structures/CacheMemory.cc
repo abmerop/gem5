@@ -533,6 +533,16 @@ CacheMemory::isLocked(Addr address, int context)
     return entry->isLocked(context);
 }
 
+void
+CacheMemory::flash(AbstractController* controller)
+{
+    for (int set = 0; set < m_cache_num_sets; set++) {
+        for (int way = 0; way < m_cache_assoc; way++) {
+            controller->flashBlock(m_cache[set][way]);
+        }
+    }
+}
+
 CacheMemory::
 CacheMemoryStats::CacheMemoryStats(statistics::Group *parent)
     : statistics::Group(parent),

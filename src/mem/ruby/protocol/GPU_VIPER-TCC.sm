@@ -251,6 +251,22 @@ machine(MachineType:TCC, "TCC Cache")
     }
   }
 
+  void flashBlock(AbstractCacheEntry* abstract_entry) {
+      Entry cache_entry := static_cast(Entry, "pointer", abstract_entry);
+      if (is_valid(cache_entry)) {
+          // TODO: Fill in other base states (non "busy" states): M, W
+          if (cache_entry.CacheState == State:V) {
+              cache_entry.CacheState := State:I;
+          } else if (cache_entry.CacheState == State:I) {
+              // no-op
+          } else {
+              DPRINTF(RubySlicc, "%d flash failed at state %s\n",
+                      version, cache_entry.CacheState);
+              error("Cache flash attempted while block was in a pending state ");
+          }
+      }
+  }
+
 
   // ** OUT_PORTS **
 
@@ -910,6 +926,12 @@ machine(MachineType:TCC, "TCC Cache")
         cache_entry.DataBlk.atomicPartial(cache_entry.DataBlk, cache_entry.writeMask, true);
       }
     }
+  }
+
+  action(fi_flashInv, "fi", desc="Flash invalidate cache") {
+    L2cache.flash(this);
+
+    // Send ACK to TCP.
   }
 
   // END ACTIONS

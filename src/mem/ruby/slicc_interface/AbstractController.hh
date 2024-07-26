@@ -58,6 +58,7 @@
 #include "mem/ruby/common/MachineID.hh"
 #include "mem/ruby/network/MessageBuffer.hh"
 #include "mem/ruby/protocol/AccessPermission.hh"
+#include "mem/ruby/slicc_interface/AbstractCacheEntry.hh"
 #include "mem/ruby/system/CacheRecorder.hh"
 #include "params/RubyController.hh"
 #include "sim/clocked_object.hh"
@@ -127,6 +128,11 @@ class AbstractController : public ClockedObject, public Consumer
     // introduces additional cycles in the response path.
     virtual Cycles mandatoryQueueLatency(const RubyRequestType& param_type)
     { return m_mandatory_queue_latency; }
+
+    virtual void flashBlock(AbstractCacheEntry* entry)
+    {
+        warn("Controller flash() function not implemented");
+    }
 
     //! These functions are used by ruby system to read/write the data blocks
     //! that exist with in the controller.
