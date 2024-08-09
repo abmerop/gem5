@@ -75,7 +75,7 @@ namespace VegaISA
     Inst_VOP1__V_MOV_B32::execute(GPUDynInstPtr gpuDynInst)
     {
         Wavefront *wf = gpuDynInst->wavefront();
-        ConstVecOperandU32 src(gpuDynInst, instData.SRC0, OperandType::Vsrc0);
+        ConstVecOperandU32 src(gpuDynInst, instData.SRC0, OperandType::Src0);
         VecOperandU32 vdst(gpuDynInst, instData.VDST, OperandType::Vdst);
 
         src.readSrc();

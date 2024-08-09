@@ -73,6 +73,14 @@ namespace VegaISA
     enum class OperandType
     {
         Unknown,
+
+        // 9-bit src operand encoding -- If MSb is 0 (not VGPR) we can
+        // ignore VGPR index.
+        Src0,
+        Src1,
+        Src2,
+
+        // 8-bit src operand encoding -- Always add VGPR index if enabled.
         Vsrc0,
         Vsrc1,
         Vsrc2,
@@ -107,6 +115,21 @@ namespace VegaISA
                     _opIdx += bits(m0_reg, 7, 0);
                 } else if (opType == OperandType::Vdst && bits(m0_reg, 15)) {
                     _opIdx += bits(m0_reg, 7, 0);
+                } else if (opType == OperandType::Src0 && bits(m0_reg, 12)) {
+                    // Ignore SGPRs, inline constants, etc.
+                    if (bits(_opIdx, 8)) {
+                        _opIdx += bits(m0_reg, 7, 0);
+                    }
+                } else if (opType == OperandType::Src1 && bits(m0_reg, 13)) {
+                    // Ignore SGPRs, inline constants, etc.
+                    if (bits(_opIdx, 8)) {
+                        _opIdx += bits(m0_reg, 7, 0);
+                    }
+                } else if (opType == OperandType::Src2 && bits(m0_reg, 14)) {
+                    // Ignore SGPRs, inline constants, etc.
+                    if (bits(_opIdx, 8)) {
+                        _opIdx += bits(m0_reg, 7, 0);
+                    }
                 } else {
                     panic("Unknown VGPR indexing operand type\n");
                 }
