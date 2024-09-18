@@ -368,6 +368,54 @@ m5checkpoint(ThreadContext *tc, Tick delay, Tick period)
 }
 
 uint64_t
+loadfile(ThreadContext *tc, GuestAddr vaddr, uint64_t len, uint64_t offset,
+         GuestAddr filename_addr)
+{
+    DPRINTF(PseudoInst, "pseudo_inst::loadfile(0x%x, 0x%x, 0x%x, 0x%x)\n",
+            vaddr.addr, len, offset, filename_addr.addr);
+
+    // copy in target filename
+    std::string file;
+    TranslatingPortProxy fs_proxy(tc);
+    SETranslatingPortProxy se_proxy(tc);
+    PortProxy &virt_proxy = FullSystem ? fs_proxy : se_proxy;
+
+    virt_proxy.readString(file, filename_addr.addr);
+    DPRINTF(PseudoInst, "pseudo_inst::loadfile host:%s\n", file.c_str());
+
+    if (file.empty()) {
+        return 0;
+    }
+
+    uint64_t result = 0;
+
+    int fd = ::open(file.c_str(), O_RDONLY, 0);
+    if (fd < 0)
+        panic("could not open file %s\n", file);
+
+    if (::lseek(fd, offset, SEEK_SET) < 0)
+        panic("could not seek: %s", strerror(errno));
+
+    char *buf = new char[len];
+    char *p = buf;
+    while (len > 0) {
+        int bytes = ::read(fd, p, len);
+        if (bytes <= 0)
+            break;
+
+        p += bytes;
+        result += bytes;
+        len -= bytes;
+    }
+
+    close(fd);
+
+    virt_proxy.writeBlob(vaddr.addr, buf, result);
+    delete [] buf;
+    return result;
+}
+
+uint64_t
 readfile(ThreadContext *tc, GuestAddr vaddr, uint64_t len, uint64_t offset)
 {
     DPRINTF(PseudoInst, "pseudo_inst::readfile(0x%x, 0x%x, 0x%x)\n",

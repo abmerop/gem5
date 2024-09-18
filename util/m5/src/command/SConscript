@@ -35,6 +35,7 @@ command_ccs = [
     'sum.cc',
     'initparam.cc',
     'loadsymbol.cc',
+    'loadfile.cc',
     'readfile.cc',
     'resetstats.cc',
     'writefile.cc',

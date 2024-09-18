@@ -54,6 +54,7 @@
 #define M5OP_EXIT               0x21
 #define M5OP_FAIL               0x22
 #define M5OP_SUM                0x23 // For testing
+#define M5OP_LOAD_FILE          0x24
 #define M5OP_INIT_PARAM         0x30
 #define M5OP_LOAD_SYMBOL        0x31
 #define M5OP_RESET_STATS        0x40
@@ -98,6 +99,7 @@
     M5OP(m5_dump_stats, M5OP_DUMP_STATS)                        \
     M5OP(m5_dump_reset_stats, M5OP_DUMP_RESET_STATS)            \
     M5OP(m5_checkpoint, M5OP_CHECKPOINT)                        \
+    M5OP(m5_load_file, M5OP_LOAD_FILE)                          \
     M5OP(m5_write_file, M5OP_WRITE_FILE)                        \
     M5OP(m5_read_file, M5OP_READ_FILE)                          \
     M5OP(m5_debug_break, M5OP_DEBUG_BREAK)                      \

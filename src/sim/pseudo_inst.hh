@@ -89,6 +89,8 @@ void quiesceSkip(ThreadContext *tc);
 void quiesceNs(ThreadContext *tc, uint64_t ns);
 void quiesceCycles(ThreadContext *tc, uint64_t cycles);
 uint64_t quiesceTime(ThreadContext *tc);
+uint64_t loadfile(ThreadContext *tc, GuestAddr vaddr, uint64_t len,
+    uint64_t offset, GuestAddr filenameAddr);
 uint64_t readfile(ThreadContext *tc, GuestAddr vaddr, uint64_t len,
     uint64_t offset);
 uint64_t writefile(ThreadContext *tc, GuestAddr vaddr, uint64_t len,
@@ -200,6 +202,10 @@ pseudoInstWork(ThreadContext *tc, uint8_t func, uint64_t &result)
 
       case M5OP_CHECKPOINT:
         invokeSimcall<ABI>(tc, m5checkpoint);
+        return true;
+
+      case M5OP_LOAD_FILE:
+        result = invokeSimcall<ABI, store_ret>(tc, loadfile);
         return true;
 
       case M5OP_WRITE_FILE:
