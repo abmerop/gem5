@@ -265,11 +265,15 @@ class MI300X(BaseViperGPU):
             'export HSA_OVERRIDE_GFX_VERSION="9.4.2"\n'
             f"{debug_commands}\n"
             "dd if=/root/roms/mi200.rom of=/dev/mem bs=1k seek=768 count=128\n"
-            "if [ ! -f /lib/modules/`uname -r`/updates/dkms/amdgpu.ko ]; then\n"
+            "lspci -v\n"
+            "if [ -f /home/gem5/load_amdgpu.sh ]; then\n"
+            "    /home/gem5/load_amdgpu.sh\n"
+            "elif [ ! -f /lib/modules/`uname -r`/updates/dkms/amdgpu.ko ]; then\n"
             '    echo "ERROR: Missing DKMS package for kernel `uname -r`. Exiting gem5."\n'
             "    /sbin/m5 exit\n"
+            "else\n"
+            "    modprobe -v amdgpu ip_block_mask=0x6f ppfeaturemask=0 dpm=0 audio=0 ras_enable=0\n"
             "fi\n"
-            "modprobe -v amdgpu ip_block_mask=0x6f ppfeaturemask=0 dpm=0 audio=0 ras_enable=0\n"
         )
 
         return driver_load_command
