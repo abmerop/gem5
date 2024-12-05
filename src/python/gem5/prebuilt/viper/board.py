@@ -188,4 +188,4 @@ class ViperBoard(X86Board):
             "/sbin/m5 exit\n"
         )
 
-        return driver_load_command + application_command
+        return application_command
