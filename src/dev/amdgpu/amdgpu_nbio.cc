@@ -114,6 +114,9 @@ AMDGPUNbio::readMMIO(PacketPtr pkt, Addr offset)
       case AMDGPU_MP1_SMN_C2PMSG_90:
         pkt->setLE<uint32_t>(0x1);
         break;
+      case MI200_BIOS_SCRATCH_7:
+        pkt->setLE<uint32_t>(0x200); // ATOM_S7_ASIC_INIT_COMPLETE_MASK
+        break;
       default:
         if (triggered_reads.count(offset)) {
             DPRINTF(AMDGPUDevice, "Found triggered read for %#x\n", offset);
