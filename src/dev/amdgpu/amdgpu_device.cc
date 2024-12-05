@@ -56,7 +56,8 @@ AMDGPUDevice::AMDGPUDevice(const AMDGPUDeviceParams &p)
     : PciEndpoint(p), gpuMemMgr(p.memory_manager), deviceIH(p.device_ih),
       cp(p.cp), checkpoint_before_mmios(p.checkpoint_before_mmios),
       init_interrupt_count(0), _lastVMID(0),
-      deviceMem(name() + ".deviceMem", p.memories, false, "", false)
+      deviceMem(name() + ".deviceMem", p.memories, false, "", false),
+      system(p.system)
 {
     uint64_t vram_size = 0;
 
@@ -211,13 +212,23 @@ void
 AMDGPUDevice::readROM(PacketPtr pkt)
 {
     Addr rom_offset = pkt->getAddr() & (ROM_SIZE - 1);
-    uint64_t rom_data = 0;
 
-    memcpy(&rom_data, rom.data() + rom_offset, pkt->getSize());
-    pkt->setUintX(rom_data, ByteOrder::little);
+    // Read directly from the VGA ROM region. For multiple GPUs, this means
+    // every GPU must be the same type. However, this allows for one less
+    // input file as the GPU VBIOS is already part of the gem5 resources disk
+    // image and loaded at the VGA_ROM_DEFAULT address as part of readfile.
+    RequestPtr request = std::make_shared<Request>(
+        VGA_ROM_DEFAULT + rom_offset, pkt->getSize(), 0, vramRequestorId());
 
-    DPRINTF(AMDGPUDevice, "Read from addr %#x on ROM offset %#x data: %#x\n",
-            pkt->getAddr(), rom_offset, rom_data);
+    auto readPkt = new Packet(request, MemCmd::ReadReq);
+    readPkt->allocate();
+
+    system->getPhysMem().access(readPkt);
+
+    DPRINTF(AMDGPUDevice, "Read from VGA ROM offset %#x returned %#x\n",
+            rom_offset, readPkt->getUintX(ByteOrder::little));
+
+    pkt->setUintX(readPkt->getUintX(ByteOrder::little), ByteOrder::little);
 }
 
 void
@@ -225,13 +236,21 @@ AMDGPUDevice::writeROM(PacketPtr pkt)
 {
     assert(isROM(pkt->getAddr()));
 
+    // Read directly from the VGA ROM region at VGA_ROM_DEFAULT address.
     Addr rom_offset = pkt->getAddr() - romRange.start();
     uint64_t rom_data = pkt->getUintX(ByteOrder::little);
 
-    memcpy(rom.data() + rom_offset, &rom_data, pkt->getSize());
+    RequestPtr request = std::make_shared<Request>(
+        VGA_ROM_DEFAULT + rom_offset, pkt->getSize(), 0, vramRequestorId());
 
-    DPRINTF(AMDGPUDevice, "Write to addr %#x on ROM offset %#x data: %#x\n",
-            pkt->getAddr(), rom_offset, rom_data);
+    auto writePkt = new Packet(request, MemCmd::WriteReq);
+    writePkt->allocate();
+    writePkt->setUintX(rom_data, ByteOrder::little);
+
+    system->getPhysMem().access(writePkt);
+
+    DPRINTF(AMDGPUDevice, "Wrote to VGA ROM offset %#x value %#x\n",
+            rom_offset, writePkt->getUintX(ByteOrder::little));
 }
 
 AddrRangeList
@@ -325,8 +344,23 @@ AMDGPUDevice::writeConfig(PacketPtr pkt)
             "data: %#x\n", offset, pkt->getSize(),
             pkt->getUintX(ByteOrder::little));
 
-    if (offset < PCI_DEVICE_SPECIFIC)
-        return PciEndpoint::writeConfig(pkt);
+    if (offset < PCI_DEVICE_SPECIFIC) {
+        // For the Expansion ROM BAR, Linux will write ~0x7ff before reading
+        // the ROM bar size. If we simply return the written value, the ROM
+        // size is only 0x800 which is too small for the GPU VBIOS. Here we
+        // override the default PciDevice behavior and set the next read to
+        // return 4kiB size. This is enough to load the *used* portions of
+        // the VBIOS. See how PCI_ROM_ADDRESS is handled in the function:
+        // github.com/torvalds/linux/blob/master/drivers/pci/probe.c#L176
+        if (offset == PCI0_ROM_BASE_ADDR &&
+            letoh(pkt->getLE<uint32_t>()) == 0xfffff800) {
+            DPRINTF(AMDGPUDevice, "Setting expansion ROM size to 0x1000\n");
+
+            config().expansionROM = 0xfffff000;
+        } else {
+            return PciEndpoint::writeConfig(pkt);
+        }
+    }
 
 
     if (offset >= PXCAP_BASE && offset < (PXCAP_BASE + sizeof(PXCAP))) {

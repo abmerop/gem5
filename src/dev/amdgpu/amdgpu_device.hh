@@ -51,6 +51,7 @@ namespace gem5
 
 class AMDGPUInterruptHandler;
 class SDMAEngine;
+class System;
 
 /**
  * Device model for an AMD GPU. This models the interface between the PCI bus
@@ -97,8 +98,6 @@ class AMDGPUDevice : public PciEndpoint
     bool isROM(Addr addr) const { return romRange.contains(addr); }
     void readROM(PacketPtr pkt);
     void writeROM(PacketPtr pkt);
-
-    std::array<uint8_t, ROM_SIZE> rom;
 
     /**
      * MMIO reader to populate device registers map.
@@ -156,6 +155,11 @@ class AMDGPUDevice : public PciEndpoint
      * Backing store for GPU memory / framebuffer / VRAM
      */
     memory::PhysicalMemory deviceMem;
+
+    /*
+     * For multiple GPUs, use system memory to read ROM.
+     */
+    System *system;
 
     /* Device information */
     GfxVersion gfx_version = GfxVersion::gfx900;
