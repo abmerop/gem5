@@ -113,7 +113,7 @@ args = parser.parse_args()
 memory = SingleChannelDDR4_2400(size="3GiB")
 
 # Note: Only KVM and ATOMIC work due to buggy MOESI_AMD_Base protocol.
-processor = SimpleProcessor(cpu_type=CPUTypes.KVM, isa=ISA.X86, num_cores=2)
+processor = SimpleProcessor(cpu_type=CPUTypes.KVM, isa=ISA.X86, num_cores=1)
 
 for core in processor.cores:
     if core.is_kvm_core():
@@ -121,7 +121,8 @@ for core in processor.cores:
 
 # The GPU must be created first so we can assign CPU-side DMA ports to the
 # CPU cache hierarchy.
-gpu0 = MI300X(gpu_memory=HBM2Stack(size="16GiB"))
+gpu0 = MI300X(gpu_memory=HBM2Stack(size="4GiB"), num_cus=4)
+gpu1 = MI300X(gpu_memory=HBM2Stack(size="4GiB"), num_cus=4)
 
 cache_hierarchy = ViperCPUCacheHierarchy(
     l1d_size="32KiB",
@@ -139,7 +140,7 @@ board = ViperBoard(
     processor=processor,
     memory=memory,
     cache_hierarchy=cache_hierarchy,
-    gpus=[gpu0],
+    gpus=[gpu0, gpu1],
 )
 
 # Example of using a local disk image resource
