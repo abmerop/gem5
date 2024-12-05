@@ -44,6 +44,7 @@ from m5.objects import (
     HSAPacketProcessor,
     LdsState,
     PciLegacyIoBar,
+    PciMemBar,
     PM4PacketProcessor,
     RegisterFileCache,
     RegisterManager,
@@ -179,6 +180,7 @@ class ViperShader(Shader):
         num_cus: int,
         cache_line_size: int,
         device: AMDGPUDevice,
+        vram_size: int,
     ):
         """
         The shader defines something the represents a single software visible
@@ -233,6 +235,8 @@ class ViperShader(Shader):
         self.system_hub = AMDGPUSystemHub()
         self._cpu_dma_ports.append(self.system_hub.dma)
 
+        self._vram_size = vram_size
+
         self._setup_device(device)
 
     def get_compute_units(self):
@@ -281,6 +285,9 @@ class ViperShader(Shader):
             device.ExpansionROM = 0xD0000000 + (0x20000 * self._shader_id)
             bar4_addr = 0xF000 + (0x100 * self._shader_id)
             device.BAR4 = PciLegacyIoBar(addr=bar4_addr, size="256B")
+
+        # To enable large BAR access, BAR0 must equal VRAM size.
+        device.BAR0 = PciMemBar(size=f"{self._vram_size}B")
 
     def _create_pm4s(self, pm4_starts: List[int], pm4_ends: List[int]):
         """Create PM4 packet processors."""

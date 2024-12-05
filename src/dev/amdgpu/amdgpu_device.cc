@@ -58,6 +58,8 @@ AMDGPUDevice::AMDGPUDevice(const AMDGPUDeviceParams &p)
       init_interrupt_count(0), _lastVMID(0),
       deviceMem(name() + ".deviceMem", p.memories, false, "", false)
 {
+    uint64_t vram_size = 0;
+
     // System pointer needs to be explicitly set for device memory since
     // DRAMCtrl uses it to get (1) cache line size and (2) the mem mode.
     // Note this means the cache line size is system wide.
@@ -66,7 +68,11 @@ AMDGPUDevice::AMDGPUDevice(const AMDGPUDeviceParams &p)
 
         // Add to system's device memory map.
         p.system->addDeviceMemory(gpuMemMgr->getRequestorID(), m);
+
+        vram_size += m->getAddrRange().size();
     }
+
+    vramSize = vram_size;
 
     if (config().expansionROM) {
         romRange = RangeSize(config().expansionROM, ROM_SIZE);
@@ -152,7 +158,11 @@ AMDGPUDevice::AMDGPUDevice(const AMDGPUDeviceParams &p)
     // could possibly be anything, but these are the values used by hardware.
     uint64_t mmhubBase = 0x8000ULL << 24;
     uint64_t mmhubTop = 0x83ffULL << 24;
-    uint64_t mem_size = 0x3ff0; // 16 GB of memory
+    uint64_t mmio_mem_size = vram_size / 0x100000;
+
+    // For the max memory size, this would overflow. Subtracting one prevents
+    // this and is still "close enough" to the BAR size to enable "large BAR."
+    mmio_mem_size -= 0x1;
 
     gpuvm.setMMHUBBase(mmhubBase);
     gpuvm.setMMHUBTop(mmhubTop);
@@ -181,17 +191,17 @@ AMDGPUDevice::AMDGPUDevice(const AMDGPUDeviceParams &p)
     } else if (p.device_name == "MI100") {
         setRegVal(MI100_FB_LOCATION_BASE, mmhubBase >> 24);
         setRegVal(MI100_FB_LOCATION_TOP, mmhubTop >> 24);
-        setRegVal(MI100_MEM_SIZE_REG, mem_size);
+        setRegVal(MI100_MEM_SIZE_REG, mmio_mem_size);
     } else if (p.device_name == "MI200") {
         // This device can have either 64GB or 128GB of device memory.
         // This limits to 16GB for simulation.
         setRegVal(MI200_FB_LOCATION_BASE, mmhubBase >> 24);
         setRegVal(MI200_FB_LOCATION_TOP, mmhubTop >> 24);
-        setRegVal(MI200_MEM_SIZE_REG, mem_size);
+        setRegVal(MI200_MEM_SIZE_REG, mmio_mem_size);
     } else if (p.device_name == "MI300X") {
         setRegVal(MI200_FB_LOCATION_BASE, mmhubBase >> 24);
         setRegVal(MI200_FB_LOCATION_TOP, mmhubTop >> 24);
-        setRegVal(MI200_MEM_SIZE_REG, mem_size);
+        setRegVal(MI200_MEM_SIZE_REG, mmio_mem_size);
     } else {
         panic("Unknown GPU device %s\n", p.device_name);
     }

@@ -152,7 +152,11 @@ class MI210(BaseViperGPU):
 
         # Setup device-specific address ranges for various SoC components.
         shader = ViperShader(
-            self._my_id, num_cus, cache_line_size, self.device
+            self._my_id,
+            num_cus,
+            cache_line_size,
+            self.device,
+            gpu_memory.get_size(),
         )
         self.set_shader(shader)
 
@@ -230,7 +234,11 @@ class MI300X(BaseViperGPU):
 
         # Setup device-specific address ranges for various SoC components.
         shader = ViperShader(
-            self._my_id, num_cus, cache_line_size, self.device
+            self._my_id,
+            num_cus,
+            cache_line_size,
+            self.device,
+            gpu_memory.get_size(),
         )
         self.set_shader(shader)
 

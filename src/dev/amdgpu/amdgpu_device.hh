@@ -159,6 +159,7 @@ class AMDGPUDevice : public PciEndpoint
 
     /* Device information */
     GfxVersion gfx_version = GfxVersion::gfx900;
+    Addr vramSize;
 
   public:
     AMDGPUDevice(const AMDGPUDeviceParams &p);
@@ -225,6 +226,7 @@ class AMDGPUDevice : public PciEndpoint
 
     /* Device information */
     GfxVersion getGfxVersion() const { return gfx_version; }
+    Addr getVRAMSize() const { return vramSize; }
 };
 
 } // namespace gem5
