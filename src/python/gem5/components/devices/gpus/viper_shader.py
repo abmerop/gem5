@@ -215,7 +215,7 @@ class ViperShader(Shader):
         self._create_tlbs(device)
 
         # This arbitrary address is something in the X86 I/O hole
-        hsapp_gpu_map_paddr = 0xE00000000
+        hsapp_gpu_map_paddr = 0xE00000000 + 0x1000 * shader_id
         self.dispatcher = GPUDispatcher()
         self.gpu_cmd_proc = GPUCommandProcessor(
             hsapp=HSAPacketProcessor(
@@ -288,6 +288,8 @@ class ViperShader(Shader):
 
         # To enable large BAR access, BAR0 must equal VRAM size.
         device.BAR0 = PciMemBar(size=f"{self._vram_size}B")
+
+        device.gpu_id = self._shader_id
 
     def _create_pm4s(self, pm4_starts: List[int], pm4_ends: List[int]):
         """Create PM4 packet processors."""
