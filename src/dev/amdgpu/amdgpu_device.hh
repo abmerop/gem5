@@ -38,6 +38,7 @@
 #include "dev/amdgpu/amdgpu_defines.hh"
 #include "dev/amdgpu/amdgpu_gfx.hh"
 #include "dev/amdgpu/amdgpu_nbio.hh"
+#include "dev/amdgpu/amdgpu_smu.hh"
 #include "dev/amdgpu/amdgpu_vm.hh"
 #include "dev/amdgpu/memory_manager.hh"
 #include "dev/amdgpu/mmio_reader.hh"
@@ -112,6 +113,7 @@ class AMDGPUDevice : public PciEndpoint
     AMDGPUMemoryManager *gpuMemMgr;
     AMDGPUInterruptHandler *deviceIH;
     AMDGPUVM gpuvm;
+    AMDGPUSmu smu;
     GPUCommandProcessor *cp;
 
     struct AddrRangeHasher
@@ -163,6 +165,7 @@ class AMDGPUDevice : public PciEndpoint
 
     /* Device information */
     GfxVersion gfx_version = GfxVersion::gfx900;
+    const int gpuId;
     Addr vramSize;
 
   public:
@@ -230,6 +233,7 @@ class AMDGPUDevice : public PciEndpoint
 
     /* Device information */
     GfxVersion getGfxVersion() const { return gfx_version; }
+    int getGpuId() const { return gpuId; }
     Addr getVRAMSize() const { return vramSize; }
 };
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Advanced Micro Devices, Inc.
+ * Copyright (c) 2024 Advanced Micro Devices, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,54 +29,50 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __DEV_AMDGPU_AMDGPU_DEFINES_HH__
-#define __DEV_AMDGPU_AMDGPU_DEFINES_HH__
+#include "dev/amdgpu/amdgpu_smu.hh"
 
-#include "base/types.hh"
+#include "debug/AMDGPUDevice.hh"
+#include "dev/amdgpu/amdgpu_device.hh"
+#include "mem/packet_access.hh"
 
 namespace gem5
 {
 
-/* Types of queues supported by device */
-enum QueueType
+void
+AMDGPUSmu::readMMIO(PacketPtr pkt, Addr offset)
 {
-    Compute,
-    Gfx,
-    SDMAGfx,
-    SDMAPage,
-    ComputeAQL,
-    InterruptHandler,
-    RLC
-};
+    uint32_t regval = 0;
 
-/*
- * Hold information about doorbells including queue type and the IP
- * block ID if the IP can have multiple instances.
- */
-typedef struct
+    switch (offset) {
+      case MI200_SMUIO_MCM_CONFIG:
+        regval = (gpuDevice->getGpuId() << 4);
+        break;
+      default:
+        DPRINTF(AMDGPUDevice, "SMU read of unknown MMIO offset %x (%x)\n",
+                offset, pkt->getAddr());
+        break;
+    }
+
+    pkt->setLE<uint32_t>(regval);
+
+    DPRINTF(AMDGPUDevice, "SMU read MMIO offset %x (%x): %x\n", offset,
+            pkt->getAddr(), pkt->getLE<uint32_t>());
+}
+
+void
+AMDGPUSmu::writeMMIO(PacketPtr pkt, Addr offset)
 {
-    QueueType qtype;
-    int ip_id;
-} DoorbellInfo;
+    switch (offset) {
+      default:
+        DPRINTF(AMDGPUDevice, "SMU write of unknown MMIO offset %x (%x)\n",
+                offset, pkt->getAddr());
+    }
+}
 
-// AMD GPUs support 16 different virtual address spaces
-static constexpr int AMDGPU_VM_COUNT = 16;
-
-/* Names of BARs used by the device. */
-constexpr int FRAMEBUFFER_BAR = 0;
-constexpr int DOORBELL_BAR = 2;
-constexpr int MMIO_BAR = 5;
-
-/* By default the X86 kernel expects the vga ROM at 0xc0000. */
-constexpr uint32_t VGA_ROM_DEFAULT = 0xc0000;
-constexpr uint32_t ROM_SIZE = 0x20000;        // 128kB
-
-/* Most MMIOs use DWORD addresses and thus need to be shifted. */
-static constexpr uint32_t IH_OFFSET_SHIFT = 2;
-static constexpr uint32_t GRBM_OFFSET_SHIFT  = 2;
-static constexpr uint32_t MMHUB_OFFSET_SHIFT = 2;
-static constexpr uint32_t SMU_OFFSET_SHIFT = 2;
+void
+AMDGPUSmu::setGPUDevice(AMDGPUDevice *gpu_device)
+{
+    gpuDevice = gpu_device;
+}
 
 } // namespace gem5
-
-#endif // __DEV_AMDGPU_AMDGPU_DEFINES_HH__
