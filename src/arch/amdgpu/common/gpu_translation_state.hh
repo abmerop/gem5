@@ -85,12 +85,17 @@ struct GpuTranslationState : public Packet::SenderState
     int hitLevel;
     Packet::SenderState *saved;
 
+    // Used for Perfetto logging.
+    Tick startTick;
+
     GpuTranslationState(BaseMMU::Mode tlb_mode, ThreadContext *_tc,
                         bool _prefetch=false,
                         Packet::SenderState *_saved=nullptr)
         : tlbMode(tlb_mode), tc(_tc), deviceId(0), pasId(0), tlbEntry(nullptr),
           isPrefetch(_prefetch), issueTime(0), hitLevel(0), saved(_saved)
-    { }
+    {
+        startTick = curTick();
+    }
 
     GpuTranslationState(BaseMMU::Mode tlb_mode,
                        bool _prefetch=false,
@@ -98,7 +103,9 @@ struct GpuTranslationState : public Packet::SenderState
         : tlbMode(tlb_mode), tc(nullptr), deviceId(0), pasId(0),
           tlbEntry(nullptr), isPrefetch(_prefetch), issueTime(0), hitLevel(0),
           saved(_saved)
-    { }
+    {
+        startTick = curTick();
+    }
 };
 
 } // namespace gem5

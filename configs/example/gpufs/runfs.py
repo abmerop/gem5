@@ -228,6 +228,13 @@ def addRunFSOptions(parser):
         help="Frequency in exec cycles of GPU progress prints",
     )
 
+    parser.add_argument(
+        "--use-perfetto",
+        default=False,
+        action="store_true",
+        help="Dump gzip'd data which can be converted to a perfetto trace",
+    )
+
 
 def runGpuFSSystem(args):
     """

@@ -82,6 +82,7 @@ class GPUCommandProcessor : public DmaVirtDevice
     GfxVersion getGfxVersion() const;
 
     void setGPUDevice(AMDGPUDevice *gpu_device);
+    AMDGPUDevice *getGPUDevice() const { return gpuDevice; }
     void setShader(Shader *shader);
     Shader* shader();
     GPUComputeDriver* driver();
@@ -167,8 +168,11 @@ class GPUCommandProcessor : public DmaVirtDevice
     void initABI(HSAQueueEntry *task);
     void sanityCheckAKC(AMDKernelCode *akc);
     HSAPacketProcessor *hsaPP;
+
+  public:
     TranslationGenPtr translate(Addr vaddr, Addr size) override;
 
+  private:
     // Running counter of dispatched tasks
     int dynamic_task_id = 0;
 

@@ -3332,7 +3332,7 @@ namespace VegaISA
         &Decoder::decode_invalid,
         &Decoder::decode_invalid,
         &Decoder::decode_invalid,
-        &Decoder::decode_invalid,
+        &Decoder::decode_OP_VOP1__S_GEM5_MARK_REGION,
         &Decoder::decode_invalid,
         &Decoder::decode_invalid,
         &Decoder::decode_invalid,
@@ -11465,6 +11465,12 @@ namespace VegaISA
     {
         fatal("Trying to decode instruction without a class\n");
         return nullptr;
+    }
+
+    GPUStaticInst*
+    Decoder::decode_OP_VOP1__S_GEM5_MARK_REGION(MachInst iFmt)
+    {
+        return new Inst_VOP1__S_GEM5_MARK_REGION(&iFmt->iFmt_VOP1);
     }
 
     GPUStaticInst*

@@ -106,6 +106,21 @@ Shader::Shader(const Params &p) : ClockedObject(p),
         cuList[i]->shader = this;
         cuList[i]->idleCUTimeout = p.idlecu_timeout;
     }
+
+    // Perfetto related parameters
+    usePerfetto = p.use_perfetto;
+
+    // Open a perfetto log if user has requested.
+    if (usePerfetto) {
+        usePerfettoAQL = p.use_perfetto_aql;
+        usePerfettoSDMA = p.use_perfetto_sdma;
+        usePerfettoInsts = p.use_perfetto_insts;
+        usePerfettoWfDynId = p.use_perfetto_wfdynid;
+
+        perfettoLog = simout.create("perfetto-log.gz");
+
+        registerExitCallback([this]() { exitCallback(); });
+    }
 }
 
 GPUDispatcher&
@@ -593,6 +608,40 @@ GfxVersion
 Shader::getGfxVersion() const
 {
     return gpuCmdProc.getGfxVersion();
+}
+
+/**
+ * Used to write a log which can be converted to a perfetto trace.
+ */
+void
+Shader::writePerfettoLog(const std::string& line,
+    const PerfettoAnnotation& annotations)
+{
+    std::ostream *os(perfettoLog->stream());
+    os->write(line.c_str(), line.length());
+
+    // This will be read in python using ast.literal_eval. This function will
+    // convert it to a python dict to pass to the perfetto tool. It is more
+    // forgiving that json parsers so things like the ending stray comma are
+    // not a problem.
+    std::stringstream fmt;
+    fmt << "{";
+    if (!annotations.empty()) {
+        for (const auto& [key, value] : annotations) {
+            fmt << "\"" << key << "\": \"" << value << "\", ";
+        }
+    }
+    fmt << "}";
+
+    os->write(fmt.str().c_str(), fmt.str().length());
+
+    os->write("\n", 1);
+}
+
+void
+Shader::exitCallback()
+{
+    simout.close(perfettoLog);
 }
 
 Shader::ShaderStats::ShaderStats(statistics::Group *parent, int wf_size)

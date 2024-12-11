@@ -1669,8 +1669,6 @@ ComputeUnit::DTLBPort::recvTimingResp(PacketPtr pkt)
     // for prefetch pkt
     BaseMMU::Mode TLB_mode = translation_state->tlbMode;
 
-    delete translation_state;
-
     // use the original sender state to know how to close this transaction
     DTLBPort::SenderState *sender_state =
         safe_cast<DTLBPort::SenderState*>(pkt->senderState);
@@ -1685,6 +1683,32 @@ ComputeUnit::DTLBPort::recvTimingResp(PacketPtr pkt)
             "instruction %s (seqNum: %ld)\n", computeUnit->cu_id,
             gpuDynInst->simdId, gpuDynInst->wfSlotId, pkt->req->getVaddr(),
             line, gpuDynInst->disassemble().c_str(), gpuDynInst->seqNum());
+
+    // Log perfetto line, if on.
+    if (computeUnit->shader->usePerfettoInsts) {
+        std::string track_name = "CU" + std::to_string(computeUnit->cu_id)
+            + "-" + "UTC";
+
+        auto slice = perfettoSlice("WF", track_name,
+            translation_state->startTick, curTick(),
+            "Translation for " + gpuDynInst->disassemble());
+
+        PerfettoAnnotation xlat_info;
+        xlat_info["Hit @ level"] = std::to_string(translation_state->hitLevel);
+        xlat_info["Type"] = "Vector";
+
+        std::stringstream fmt;
+        fmt << std::hex << pkt->req->getVaddr();
+        std::string translation_text = fmt.str() + " -> ";
+        fmt.str("");
+        fmt << std::hex << pkt->req->getPaddr();
+        translation_text += fmt.str();
+        xlat_info["Translation"] = translation_text;
+
+        computeUnit->shader->writePerfettoLog(slice, xlat_info);
+    }
+
+    delete translation_state;
 
     MemCmd requestCmd;
 
@@ -1954,7 +1978,6 @@ ComputeUnit::ScalarDTLBPort::recvTimingResp(PacketPtr pkt)
     assert(!translation_state->ports.size());
 
     pkt->senderState = translation_state->saved;
-    delete translation_state;
 
     ScalarDTLBPort::SenderState *sender_state =
         safe_cast<ScalarDTLBPort::SenderState*>(pkt->senderState);
@@ -1967,6 +1990,32 @@ ComputeUnit::ScalarDTLBPort::recvTimingResp(PacketPtr pkt)
     DPRINTF(GPUTLB, "CU%d: WF[%d][%d][wv=%d]: scalar DTLB port received "
         "translation: PA %#x -> %#x\n", computeUnit->cu_id, w->simdId,
         w->wfSlotId, w->kernId, pkt->req->getVaddr(), pkt->req->getPaddr());
+
+    // Log perfetto line, if on.
+    if (computeUnit->shader->usePerfettoInsts) {
+        std::string track_name = "CU" + std::to_string(computeUnit->cu_id)
+            + "-" + "UTC";
+
+        auto slice = perfettoSlice("WF", track_name,
+            translation_state->startTick, curTick(),
+            "Translation for " + gpuDynInst->disassemble());
+
+        PerfettoAnnotation xlat_info;
+        xlat_info["Hit @ level"] = std::to_string(translation_state->hitLevel);
+        xlat_info["Type"] = "Scalar";
+
+        std::stringstream fmt;
+        fmt << std::hex << pkt->req->getVaddr();
+        std::string translation_text = fmt.str() + " -> ";
+        fmt.str("");
+        fmt << std::hex << pkt->req->getPaddr();
+        translation_text += fmt.str();
+        xlat_info["Translation"] = translation_text;
+
+        computeUnit->shader->writePerfettoLog(slice, xlat_info);
+    }
+
+    delete translation_state;
 
     MemCmd mem_cmd;
 

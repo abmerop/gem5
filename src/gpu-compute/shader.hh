@@ -34,8 +34,10 @@
 
 #include <functional>
 #include <string>
+#include <unordered_map>
 
 #include "arch/gpu_isa.hh"
+#include "base/output.hh"
 #include "base/statistics.hh"
 #include "base/stats/group.hh"
 #include "base/types.hh"
@@ -77,6 +79,27 @@ struct ApertureRegister
     Addr limit;
 };
 
+// Some definitions for perfetto logging.
+using PerfettoAnnotation = std::unordered_map<std::string, std::string>;
+
+inline std::string
+perfettoSlice(std::string track_type, std::string track_name, Tick start,
+              Tick end, std::string slice)
+{
+    // The 6th part of this "CSV" format requires using commas. Using
+    // semi-colon as delimiter instead.
+    return track_type + ";" + track_name + ";" + std::to_string(start)
+        + ";" + std::to_string(end) + ";" + slice + ";";
+}
+
+inline std::string
+perfettoSlice(std::string track_type, int track_id, Tick start, Tick end,
+              std::string slice)
+{
+    return perfettoSlice(track_type, std::to_string(track_id),
+                         start, end, slice);
+}
+
 // Class Shader: This describes a single shader instance. Most
 // configurations will only have a single shader.
 
@@ -108,6 +131,9 @@ class Shader : public ClockedObject
     // should wait for these to be done to ensure correctness.
     int num_outstanding_invl2s = 0;
     std::vector<std::tuple<void *, uint32_t, Addr>> deferred_dispatches;
+
+    // Used to output a log which can be converted to a perfetto trace.
+    OutputStream *perfettoLog;
 
   public:
     typedef ShaderParams Params;
@@ -346,6 +372,16 @@ class Shader : public ClockedObject
 
     void addDeferredDispatch(void *raw_pkt, uint32_t queue_id,
                              Addr host_pkt_addr);
+
+    // Used to write a log which can be converted to a perfetto trace.
+    bool usePerfetto = false;
+    bool usePerfettoAQL = false;
+    bool usePerfettoSDMA = false;
+    bool usePerfettoInsts = false;
+    bool usePerfettoWfDynId = false;
+    void writePerfettoLog(const std::string& line,
+        const std::unordered_map<std::string, std::string>& annotations);
+    void exitCallback();
 
   protected:
     struct ShaderStats : public statistics::Group

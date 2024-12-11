@@ -433,6 +433,15 @@ class HSAQueueEntry
         return &(_preloadArgs[0]);
     }
 
+    // These are used for outputing traces and otherwise unused by the model.
+    void setStartTick(Tick t) { startTick = t; }
+    void setEndTick(Tick t) { endTick = t; }
+    void setTaskDesc(std::string desc) { taskDesc = desc; }
+
+    Tick getStartTick() const { return startTick; }
+    Tick getEndTick() const { return endTick; }
+    const std::string& getTaskDesc() const { return taskDesc; }
+
   private:
     void
     parseKernelCode(AMDKernelCode *akc)
@@ -537,6 +546,11 @@ class HSAQueueEntry
     // max amount. It is of dword type to easily access during wave start.
     unsigned _preloadLength = 0;
     uint32_t _preloadArgs[KernargPreloadPktSize / sizeof(uint32_t)];
+
+    // These are used for outputing traces and otherwise unused by the model.
+    Tick startTick = 0;
+    Tick endTick = 0;
+    std::string taskDesc;
 };
 
 } // namespace gem5

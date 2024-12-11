@@ -46024,6 +46024,39 @@ namespace VegaISA
 
         void execute(GPUDynInstPtr) override;
     }; // Inst_VOP3__V_CVT_PK_BF8_F32
+
+    class Inst_VOP1__S_GEM5_MARK_REGION : public Inst_VOP1
+    {
+      public:
+        Inst_VOP1__S_GEM5_MARK_REGION(InFmt_VOP1*);
+        ~Inst_VOP1__S_GEM5_MARK_REGION();
+
+        int
+        getNumOperands() override
+        {
+            return numDstRegOperands() + numSrcRegOperands();
+        } // getNumOperands
+
+        int numDstRegOperands() override { return 1; }
+        int numSrcRegOperands() override { return 1; }
+
+        int
+        getOperandSize(int opIdx) override
+        {
+            switch (opIdx) {
+              case 0: //ssrc
+                return 4;
+              case 1: //sdst
+                return 4;
+              default:
+                fatal("op idx %i out of bounds\n", opIdx);
+                return -1;
+            }
+        } // getOperandSize
+
+        void execute(GPUDynInstPtr) override;
+    }; // Inst_VOP1__S_GEM5_MARK_REGION
+
 } // namespace VegaISA
 } // namespace gem5
 

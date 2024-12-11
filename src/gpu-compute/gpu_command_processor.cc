@@ -387,6 +387,8 @@ GPUCommandProcessor::dispatchKernelObject(AMDKernelCode *akc, void *raw_pkt,
         return;
     }
 
+    task->setTaskDesc("Task ID " + std::to_string(dynamic_task_id));
+
     DPRINTF(GPUCommandProc, "Task ID: %i Got AQL: wg size (%dx%dx%d), "
         "grid size (%dx%dx%d) kernarg addr: %#x, completion "
         "signal addr:%#x\n", dynamic_task_id, disp_pkt->workgroup_size_x,

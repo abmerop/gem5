@@ -723,10 +723,24 @@ SDMAEngine::copy(SDMAQueue *q, sdmaCopy *pkt)
         }
     }
 
+    // Fill in some information for perfetto logging.
+    auto shader = gpuDevice->CP()->shader();
+    if (shader->usePerfettoSDMA) {
+        pktStart = curTick();
+        pktNotes.clear();
+        pktNotes["Size"] = std::to_string(pkt->count) + " bytes";
+    }
+
     // Read data from the source first, then call the copyReadData method
     uint8_t *dmaBuffer = new uint8_t[pkt->count];
     Addr device_addr = getDeviceAddress(pkt->source);
     if (device_addr) {
+        if (shader->usePerfettoSDMA) {
+            std::stringstream fmt;
+            fmt << std::hex << device_addr;
+            pktNotes["Source"] = fmt.str() + " (device)";
+        }
+
         DPRINTF(SDMAEngine, "Copying from device address %#lx\n", device_addr);
         auto cb = new EventFunctionWrapper(
             [ = ]{ copyReadData(q, pkt, dmaBuffer); }, name());
@@ -748,6 +762,16 @@ SDMAEngine::copy(SDMAQueue *q, sdmaCopy *pkt)
             buffer_ptr += gen.size();
         }
     } else {
+        if (shader->usePerfettoSDMA) {
+            auto tgen = translate(pkt->source, 64);
+            auto addr_range = *(tgen->begin());
+            Addr tmp_addr = addr_range.paddr;
+
+            std::stringstream fmt;
+            fmt << std::hex << tmp_addr;
+            pktNotes["Source"] = fmt.str() + " (host)";
+        }
+
         auto cb = new DmaVirtCallback<uint64_t>(
             [ = ] (const uint64_t &) { copyReadData(q, pkt, dmaBuffer); });
         dmaReadVirt(pkt->source, pkt->count, cb, (void *)dmaBuffer,
@@ -774,6 +798,13 @@ SDMAEngine::copyReadData(SDMAQueue *q, sdmaCopy *pkt, uint8_t *dmaBuffer)
     Addr device_addr = getDeviceAddress(pkt->dest);
     // Write read data to the destination address then call the copyDone method
     if (device_addr) {
+        auto shader = gpuDevice->CP()->shader();
+        if (shader->usePerfettoSDMA) {
+            std::stringstream fmt;
+            fmt << std::hex << device_addr;
+            pktNotes["Dest"] = fmt.str() + " (device)";
+        }
+
         DPRINTF(SDMAEngine, "Copying to device address %#lx\n", device_addr);
         auto cb = new EventFunctionWrapper(
             [ = ]{ copyDone(q, pkt, dmaBuffer); }, name());
@@ -796,6 +827,13 @@ SDMAEngine::copyReadData(SDMAQueue *q, sdmaCopy *pkt, uint8_t *dmaBuffer)
             buffer_ptr += gen.size();
         }
     } else {
+        auto shader = gpuDevice->CP()->shader();
+        if (shader->usePerfettoSDMA) {
+            std::stringstream fmt;
+            fmt << std::hex << pkt->dest;
+            pktNotes["Dest"] = fmt.str() + " (device)";
+        }
+
         DPRINTF(SDMAEngine, "Copying to host address %#lx\n", pkt->dest);
         auto cb = new DmaVirtCallback<uint64_t>(
             [ = ] (const uint64_t &) { copyDone(q, pkt, dmaBuffer); });
@@ -805,6 +843,13 @@ SDMAEngine::copyReadData(SDMAQueue *q, sdmaCopy *pkt, uint8_t *dmaBuffer)
     // For destinations in the GART table, gem5 uses a mapping tables instead
     // of functionally going to device memory, so we need to update that copy.
     if (gpuDevice->getVM().inGARTRange(device_addr)) {
+        auto shader = gpuDevice->CP()->shader();
+        if (shader->usePerfettoSDMA) {
+            std::stringstream fmt;
+            fmt << std::hex << device_addr;
+            pktNotes["Dest"] = fmt.str() + " (GART)";
+        }
+
         // GART entries are always 8 bytes.
         assert((pkt->count % 8) == 0);
         for (int i = 0; i < pkt->count/8; ++i) {
@@ -830,6 +875,27 @@ SDMAEngine::copyDone(SDMAQueue *q, sdmaCopy *pkt, uint8_t *dmaBuffer)
     if (!system_ptr->isAtomicMode()) {
         warn_once("SDMA cleanup assumes 2000 tick timing for completion."
                 " This has not been tested in timing mode\n");
+    }
+
+    // Perfetto logging.
+    auto shader = gpuDevice->CP()->shader();
+    if (shader->usePerfettoSDMA) {
+        Tick xfer_time = curTick() - pktStart; // Ticks (usually picoseconds)
+        float bw = pkt->count / (xfer_time / sim_clock::as_float::s); // B/s
+        const char* units[] = {" B/s", " kiB/s", " MiB/s", " GiB/s", " TiB/s"};
+
+        int i = 0;
+        for (; i < 5; ++i) {
+            if (bw < 1024.0f) break;
+            bw /= 1024.0f;
+        }
+
+        std::stringstream fmt;
+        fmt << std::fixed << bw; // 2 decimal places
+        pktNotes["Transfer Rate"] = fmt.str() + units[i];
+
+        auto slice = perfettoSlice("SDMA", id, pktStart, curTick(), "Copy");
+        shader->writePerfettoLog(slice, pktNotes);
     }
 
     // Only 2000 ticks should be necessary, but add additional padding.

@@ -101,6 +101,11 @@ Wavefront::Wavefront(const Params &p)
 
     lastInstSeqNum = 0;
     lastInstDisasm = "none";
+
+    std::stringstream fmt;
+    fmt << "SIMD" << std::to_string(simdId)
+        << " WF" << std::to_string(wfSlotId);
+    perfettoTrackName = fmt.str();
 }
 
 void
@@ -629,6 +634,41 @@ Wavefront::setStatus(status_e newStatus)
             assert(computeUnit->idleWfs >= 0);
         }
     }
+
+    // Perfetto logging. Only log moving from running to stopped. Any thing
+    // else will cause splits in the perfetto slices which prevents showing a
+    // flame graph like inverse pyramid.
+    if (computeUnit->shader->usePerfettoWfDynId && newStatus != status) {
+        bool idle_transition = false;
+        if (newStatus == S_STOPPED) {
+            idle_transition = true;
+        }
+
+        // Special case: Ignore stopped -> returning and returning -> stopped.
+        // This will cause a weird duplicate track for one wave per task (the
+        // one that does the release / cache flush).
+        if (status == S_STOPPED && newStatus == S_RETURNING) {
+            idle_transition = false;
+        } else if (status == S_RETURNING && newStatus == S_STOPPED) {
+            idle_transition = false;
+        }
+
+        if (idle_transition) {
+            std::string slice_text = "WF " + std::to_string(wfDynId);
+            auto slice = perfettoSlice("WF", perfettoTrackName,
+                    lastWfDynStart, curTick(), slice_text);
+
+            PerfettoAnnotation dyn_info;
+            dyn_info["End Status"] = statusToString(newStatus);
+            dyn_info["WF Slot"] = std::to_string(wfSlotId);
+
+            computeUnit->shader->writePerfettoLog(slice, dyn_info);
+
+            lastWfDynStart = 0;
+            lastWfDynId = 0;
+        }
+    }
+
     status = newStatus;
 }
 
@@ -641,6 +681,22 @@ Wavefront::start(uint64_t _wf_dyn_id, Addr init_pc)
     status = S_RUNNING;
 
     vecReads.resize(maxVgprs, 0);
+
+    // Create an "instant" in perfetto to show starting WF.
+    if (computeUnit->shader->usePerfettoWfDynId) {
+        std::string slice_text = "Start WF " + std::to_string(wfDynId);
+        auto slice = perfettoSlice("WF", perfettoTrackName,
+                curTick(), curTick(), slice_text);
+
+        PerfettoAnnotation dyn_info;
+        dyn_info["WF Slot"] = std::to_string(wfSlotId);
+
+        computeUnit->shader->writePerfettoLog(slice, dyn_info);
+
+        lastWfDynStart = curTick();
+        lastWfDynId = wfDynId;
+    }
+
 }
 
 bool
@@ -968,6 +1024,7 @@ Wavefront::exec()
 
     GPUDynInstPtr ii = instructionBuffer.front();
 
+    Shader *shader = computeUnit->shader;
     const Addr old_pc = pc();
     DPRINTF(GPUExec, "CU%d: WF[%d][%d]: wave[%d] Executing inst: %s "
             "(pc: %#x; seqNum: %d)\n", computeUnit->cu_id, simdId, wfSlotId,
@@ -975,6 +1032,44 @@ Wavefront::exec()
     DPRINTF(GPUTrace, "CU%d: WF[%d][%d]: wave[%d] Executing inst: %s "
             "(pc: %#x; seqNum: %d)\n", computeUnit->cu_id, simdId, wfSlotId,
             wfDynId, ii->disassemble(), old_pc, ii->seqNum());
+
+    // Currently does not handle variable latency instructions. This will not
+    // accurately display long instructions such as MFMAs.
+    if (shader->usePerfettoInsts) {
+        auto slice = perfettoSlice("WF", perfettoTrackName, curTick(),
+            curTick() + 4000, ii->disassemble());
+
+        PerfettoAnnotation inst_info;
+        inst_info["WF Slot"] = std::to_string(wfSlotId);
+        inst_info["SeqNum"] = std::to_string(ii->seqNum());
+        inst_info["Stalled On"] = lastInstRdyStatus;
+
+        std::stringstream fmt;
+        fmt << std::hex << execMask().to_ullong();
+        inst_info["EXEC MASK"] = fmt.str();
+
+        shader->writePerfettoLog(slice, inst_info);
+    }
+
+    if (shader->usePerfettoWfDynId) {
+        if (wfDynId != lastWfDynId) {
+            // lastWfDynStart == 0 means we are not tracking any WF yet.
+            if (lastWfDynStart > 0) {
+                std::string slice_text = "WF " + std::to_string(wfDynId);
+                auto slice = perfettoSlice("WF", perfettoTrackName,
+                        lastWfDynStart, curTick(), slice_text);
+
+                PerfettoAnnotation dyn_info;
+                dyn_info["Last Status"] = statusToString(status);
+                dyn_info["WF Slot"] = std::to_string(wfSlotId);
+
+                shader->writePerfettoLog(slice, dyn_info);
+            }
+
+            lastWfDynStart = curTick();
+            lastWfDynId = wfDynId;
+        }
+    }
 
     ii->execute(ii);
     // delete the dynamic instruction from the pipeline map
@@ -1358,7 +1453,7 @@ Wavefront::sleepDone()
     if (sleepCnt != 0)
         return false;
 
-    status = S_RUNNING;
+    setStatus(S_RUNNING);
     return true;
 }
 
@@ -1425,7 +1520,7 @@ Wavefront::clearWaitCnts()
     lgkmWaitCnt = -1;
 
     // resume running normally
-    status = S_RUNNING;
+    setStatus(S_RUNNING);
 }
 
 void
@@ -1690,6 +1785,45 @@ Wavefront::printProgress()
     }
     for (auto &elem : expIssued) {
         std::cout << "\t" << cntInsts[elem] << "\n";
+    }
+}
+
+void
+Wavefront::markRegion(std::string& region_name, uint32_t flags)
+{
+    // If currentRegion is set, end that region and begin the next. Note: If
+    // the user code does not end the region, it will not create a Perfetto
+    // track.
+    if (regionMap.count(region_name)) {
+        if (flags == 0) {
+            // Starting a region that has already begun?
+            warn("Region %s already started, ignoring start region\n",
+                    region_name.c_str());
+        } else if (flags == 1) {
+            if (computeUnit->shader->usePerfettoWfDynId) {
+                auto slice = perfettoSlice("WF", perfettoTrackName,
+                        regionMap[region_name], curTick(), region_name);
+
+                PerfettoAnnotation debug_info;
+                computeUnit->shader->writePerfettoLog(slice, debug_info);
+            }
+
+            regionMap.erase(region_name);
+        } else {
+            warn("Unknown region flag %d\n", flags);
+        }
+    } else {
+        if (flags == 0) {
+            regionMap.insert({region_name, curTick()});
+        } else if (flags == 1) {
+            // Ending a region that has not begun?
+            warn("Region %s has not started, ignoring end region\n",
+                    region_name.c_str());
+        } else if (flags == 2) {
+            // "Instant region" -- Can basically be used as a const print.
+        } else {
+            warn("Unknown region flag %d\n", flags);
+        }
     }
 }
 

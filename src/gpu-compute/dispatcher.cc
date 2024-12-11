@@ -122,6 +122,8 @@ GPUDispatcher::dispatch(HSAQueueEntry *task)
     DPRINTF(GPUAgentDisp, "launching kernel: %s, dispatch ID: %d\n",
             task->kernelName(), task->dispatchId());
 
+    task->setStartTick(curTick());
+
     execIds.push(task->dispatchId());
     dispatchActive = true;
     hsaQueueEntries.emplace(task->dispatchId(), task);
@@ -318,6 +320,33 @@ GPUDispatcher::notifyWgCompl(Wavefront *wf)
         } else {
             DPRINTF(GPUDisp, "HSA AQL Kernel Complete! No completion "
                 "signal\n");
+        }
+
+        // Write out to perfetto log
+        if (shader->usePerfettoAQL) {
+            task->setEndTick(curTick());
+
+            // The text of the slice
+            auto slice = perfettoSlice("AQL", task->queueId(),
+                task->getStartTick(), task->getEndTick(), task->getTaskDesc());
+
+            // Map of key/values displayed when clicking on a Perfetto slice.
+            PerfettoAnnotation task_notes;
+            task_notes["Kernel Name"] = task->kernelName();
+            task_notes["Dispatch ID"] = std::to_string(task->dispatchId());
+            task_notes["LDS per WG"] = std::to_string(task->ldsSize());
+            task_notes["Scratch per thread"] =
+                std::to_string(task->privMemPerItem());
+            task_notes["VGPRs"] = std::to_string(task->numVectorRegs());
+            task_notes["SGPRs"] = std::to_string(task->numScalarRegs());
+            task_notes["WG Size"] = std::to_string(task->wgSize(0)) + "x"
+                + std::to_string(task->wgSize(1)) + "x"
+                + std::to_string(task->wgSize(2));
+            task_notes["Grid Size"] = std::to_string(task->gridSize(0))
+                + "x" + std::to_string(task->gridSize(1)) + "x"
+                + std::to_string(task->gridSize(2));
+
+            shader->writePerfettoLog(slice, task_notes);
         }
 
         DPRINTF(GPUWgLatency, "Kernel Complete ticks:%d kernel:%d\n",

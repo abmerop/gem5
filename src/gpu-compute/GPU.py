@@ -330,6 +330,23 @@ class Shader(ClockedObject):
         "value in most cases. Set to 0 to disable.",
     )
 
+    # Perfetto related options. Defaults thought out as follows: Disable in
+    # general to avoid big output files. If enabled, show AQL and SDMA which
+    # would show something vaguely similar to ROCm Systems Profiler.
+    # Disabled instructions unless explicitly specified. This generates huge
+    # amounts of data and it is easy to generate a trace too large for
+    # Perfetto with this option on. Further filter could be used here (user
+    # specified task IDs) or in the conversion python script.
+    use_perfetto = Param.Bool(False, "Enable perfetto logging in general")
+    use_perfetto_aql = Param.Bool(True, "Add AQL tasks to perfetto log")
+    use_perfetto_sdma = Param.Bool(True, "Add SDMA copies to perfetto log")
+    use_perfetto_insts = Param.Bool(
+        False, "Add per-SIMD instructions to perfetto log"
+    )
+    use_perfetto_wfdynid = Param.Bool(
+        True, "Add what wavefront dynamic ID is executing per-SIMD"
+    )
+
 
 class GPUComputeDriver(EmulatedDriver):
     type = "GPUComputeDriver"
