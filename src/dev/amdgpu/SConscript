@@ -38,8 +38,8 @@ if not env['CONF']['USE_X86_ISA']:
 # Controllers
 SimObject('AMDGPU.py', sim_objects=['AMDGPUDevice', 'AMDGPUInterruptHandler',
                                     'AMDGPUMemoryManager', 'AMDGPUSystemHub',
-                                    'SDMAEngine', 'PM4PacketProcessor'],
-                                    tags=['x86 isa'])
+                                    'SDMAEngine', 'PM4PacketProcessor',
+                                    'XGMIHive'], tags=['x86 isa'])
 
 Source('amdgpu_device.cc', tags=['x86 isa'])
 Source('amdgpu_gfx.cc', tags=['x86 isa'])
@@ -52,6 +52,7 @@ Source('mmio_reader.cc', tags=['x86 isa'])
 Source('pm4_packet_processor.cc', tags=['x86 isa'])
 Source('sdma_engine.cc', tags=['x86 isa'])
 Source('system_hub.cc', tags=['x86 isa'])
+Source('xgmi_hive.cc', tags=['x86 isa'])
 
 DebugFlag('AMDGPUDevice', tags=['x86 isa'])
 DebugFlag('AMDGPUMem', tags=['x86 isa'])
@@ -59,3 +60,4 @@ DebugFlag('AMDGPUSystemHub', tags=['x86 isa'])
 DebugFlag('PM4PacketProcessor', tags=['x86 isa'])
 DebugFlag('SDMAEngine', tags=['x86 isa'])
 DebugFlag('SDMAData', tags=['x86 isa'])
+DebugFlag('XGMI', tags=['x86 isa'])

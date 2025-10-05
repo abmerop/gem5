@@ -38,6 +38,7 @@
 #include "debug/AMDGPUDevice.hh"
 #include "dev/amdgpu/amdgpu_defines.hh"
 #include "dev/amdgpu/amdgpu_device.hh"
+#include "dev/amdgpu/xgmi_hive.hh"
 #include "mem/packet_access.hh"
 
 namespace gem5
@@ -126,6 +127,23 @@ AMDGPUVM::readMMIO(PacketPtr pkt, Addr offset)
         DPRINTF(AMDGPUDevice, "Overwritting invalidation ENG17 ACK\n");
         pkt->setLE<uint32_t>(1);
         break;
+      case MI300X_XGMI_LFB_CTRL:
+          if (gpuDevice->getXgmiEnabled()) {
+              int hive_count = gpuDevice->getXgmiHive()->getNodeCount();
+              pkt->setLE<uint32_t>(gpuDevice->getGpuId() | (hive_count << 4));
+          } else {
+              pkt->setLE<uint32_t>(0);
+          }
+        DPRINTF(AMDGPUDevice, "Setting XGMI_LFB_CTRL to %#x\n",
+                pkt->getLE<uint32_t>());
+        break;
+      case MI300X_XGMI_LFB_SIZE:
+          pkt->setLE<uint32_t>(
+              gpuDevice->getXgmiHive()->getFrameSize(gpuDevice->getGpuId()) /
+              0x1000000);
+          DPRINTF(AMDGPUDevice, "Setting XGMI_LFB_SIZE to %#x\n",
+                  pkt->getLE<uint32_t>());
+          break;
       default:
         DPRINTF(AMDGPUDevice, "GPUVM read of unknown MMIO %#x\n", offset);
         break;

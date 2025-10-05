@@ -53,6 +53,7 @@ namespace gem5
 class AMDGPUInterruptHandler;
 class SDMAEngine;
 class System;
+class XGMIHive;
 
 /**
  * Device model for an AMD GPU. This models the interface between the PCI bus
@@ -168,6 +169,11 @@ class AMDGPUDevice : public PciEndpoint
     const int gpuId;
     Addr vramSize;
 
+    /* XGMI */
+    bool xgmiEnabled = false;
+    XGMIHive *xgmiHive = nullptr;
+    int xgmiNode = 0;
+
   protected:
     /**
      * Methods inherited from PciEndpoint
@@ -246,6 +252,18 @@ class AMDGPUDevice : public PciEndpoint
     getVRAMSize() const
     {
         return vramSize;
+    }
+
+    /* For XGMI */
+    bool
+    getXgmiEnabled() const
+    {
+        return xgmiEnabled;
+    }
+    XGMIHive *
+    getXgmiHive() const
+    {
+        return xgmiHive;
     }
 };
 

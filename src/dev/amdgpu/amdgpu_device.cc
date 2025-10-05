@@ -39,6 +39,7 @@
 #include "dev/amdgpu/interrupt_handler.hh"
 #include "dev/amdgpu/pm4_packet_processor.hh"
 #include "dev/amdgpu/sdma_engine.hh"
+#include "dev/amdgpu/xgmi_hive.hh"
 #include "dev/hsa/hw_scheduler.hh"
 #include "gpu-compute/gpu_command_processor.hh"
 #include "gpu-compute/shader.hh"
@@ -62,8 +63,15 @@ AMDGPUDevice::AMDGPUDevice(const AMDGPUDeviceParams &p)
       _lastVMID(0),
       deviceMem(name() + ".deviceMem", p.memories, false, "", false),
       system(p.system),
-      gpuId(p.gpu_id)
+      gpuId(p.gpu_id),
+      xgmiHive(p.xgmi_hive),
+      xgmiNode(p.xgmi_node)
 {
+    xgmiEnabled = xgmiHive != nullptr && xgmiNode != 0;
+
+    DPRINTF(AMDGPUDevice, "info: XGMI enabled: %s\n",
+            xgmiEnabled ? "true" : "false");
+
     uint64_t vram_size = 0;
 
     // System pointer needs to be explicitly set for device memory since
@@ -72,6 +80,9 @@ AMDGPUDevice::AMDGPUDevice(const AMDGPUDeviceParams &p)
     for (auto& m : p.memories) {
         m->system(p.system);
 
+        DPRINTF(AMDGPUDevice, "Adding device memory: %s rid %d\n",
+                m->name().c_str(), gpuMemMgr->getRequestorID());
+
         // Add to system's device memory map.
         p.system->addDeviceMemory(gpuMemMgr->getRequestorID(), m);
 
@@ -79,6 +90,10 @@ AMDGPUDevice::AMDGPUDevice(const AMDGPUDeviceParams &p)
     }
 
     vramSize = vram_size;
+
+    if (xgmiHive) {
+        xgmiHive->addNode(this);
+    }
 
     if (config().expansionROM) {
         romRange = RangeSize(config().expansionROM, ROM_SIZE);
@@ -445,6 +460,10 @@ AMDGPUDevice::writeConfig(PacketPtr pkt)
 
     pkt->makeAtomicResponse();
 
+    if (xgmiHive) {
+        xgmiHive->updateAddressRange(gpuId, BARs[0]->range());
+    }
+
     return configDelay;
 }
 
@@ -461,6 +480,10 @@ AMDGPUDevice::dispatchAccess(PacketPtr pkt, bool read)
 void
 AMDGPUDevice::readFrame(PacketPtr pkt, Addr offset)
 {
+    if (xgmiEnabled) {
+        offset += xgmiHive->getXgmiBaseAddr(gpuId);
+    }
+
     DPRINTF(AMDGPUDevice, "Read framebuffer address %#lx\n", offset);
 
     /*
@@ -544,8 +567,14 @@ AMDGPUDevice::readMMIO(PacketPtr pkt, Addr offset)
 void
 AMDGPUDevice::writeFrame(PacketPtr pkt, Addr offset)
 {
-    DPRINTF(AMDGPUDevice, "Wrote framebuffer address %#lx (size %d)\n", offset,
-            pkt->getSize());
+    if (xgmiEnabled) {
+        offset += xgmiHive->getXgmiBaseAddr(gpuId);
+    }
+
+    DPRINTF(AMDGPUDevice,
+            "Wrote framebuffer address %#lx (size %d) GART: %#lx - %#lx\n",
+            offset, pkt->getSize(), gpuvm.gartBase(),
+            gpuvm.gartBase() + gpuvm.gartSize());
 
     for (auto& cu: CP()->shader()->cuList) {
         Addr aligned_addr = offset & ~(gpuMemMgr->getCacheLineSize() - 1);
@@ -771,13 +800,6 @@ AMDGPUDevice::writeDevice(PacketPtr pkt)
       default:
         panic("Request with address out of mapped range!");
     }
-
-    // Record only if there is non-zero value, or a value to be overwritten.
-    // Reads return 0 by default.
-    uint64_t data = pkt->getUintX(ByteOrder::little);
-
-    DPRINTF(AMDGPUDevice, "PCI Write to %#lx data %#lx\n",
-                            pkt->getAddr(), data);
 
     dispatchAccess(pkt, false);
 

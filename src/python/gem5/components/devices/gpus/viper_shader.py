@@ -181,6 +181,7 @@ class ViperShader(Shader):
         cache_line_size: int,
         device: AMDGPUDevice,
         vram_size: int,
+        xgmi_enabled: bool = False,
     ):
         """
         The shader defines something the represents a single software visible
@@ -236,11 +237,18 @@ class ViperShader(Shader):
         self._cpu_dma_ports.append(self.system_hub.dma)
 
         self._vram_size = vram_size
+        self._xgmi_enabled = xgmi_enabled
 
         self._setup_device(device)
 
     def get_compute_units(self):
         return self.CUs
+
+    def get_xgmi_enabled(self):
+        return self._xgmi_enabled
+
+    def get_shader_id(self):
+        return self._shader_id
 
     def _setup_device(self, device: AMDGPUDevice):
         """Set the device type info on the device connected via PCI."""

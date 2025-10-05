@@ -197,13 +197,21 @@ AMDGPUNbio::writeMMIO(PacketPtr pkt, Addr offset)
     } else if (offset == AMDGPU_MP0_SMN_C2PMSG_69) {
         // PSP ring low addr
         psp_ring = insertBits(psp_ring, 31, 0, pkt->getLE<uint32_t>());
-        psp_ring_listen_addr = psp_ring
-                             - gpuDevice->getVM().getSysAddrRangeLow() + 0xc;
+        psp_ring_listen_addr =
+            psp_ring - gpuDevice->getVM().getMMHUBBase() + 0xc;
+        DPRINTF(AMDGPUDevice, "Set psp_ring_listen_addr to %#lx\n",
+                psp_ring_listen_addr);
+        DPRINTF(AMDGPUDevice, "psp_ring %#lx sysAddrL %#lx\n", psp_ring,
+                gpuDevice->getVM().getMMHUBBase());
     } else if (offset == AMDGPU_MP0_SMN_C2PMSG_70) {
         // PSP ring high addr
         psp_ring = insertBits(psp_ring, 63, 32, pkt->getLE<uint32_t>());
-        psp_ring_listen_addr = psp_ring
-                             - gpuDevice->getVM().getSysAddrRangeLow() + 0xc;
+        psp_ring_listen_addr =
+            psp_ring - gpuDevice->getVM().getMMHUBBase() + 0xc;
+        DPRINTF(AMDGPUDevice, "Set psp_ring_listen_addr to %#lx\n",
+                psp_ring_listen_addr);
+        DPRINTF(AMDGPUDevice, "psp_ring %#lx sysAddrL %#lx\n", psp_ring,
+                gpuDevice->getVM().getMMHUBBase());
     } else if (offset == AMDGPU_MP0_SMN_C2PMSG_71) {
         // PSP ring size
         psp_ring_size = pkt->getLE<uint32_t>();
@@ -269,6 +277,15 @@ AMDGPUNbio::readFrame(PacketPtr pkt, Addr offset)
         return true;
     }
 
+    if ((offset & 0xffffffff) == 0xee5e8418) {
+        // Hack to test XGMI get hive id and node id. These are the default
+        // values used in the driver if the PSP is not present.
+        DPRINTF(AMDGPUDevice, "Returning hive id or node id\n");
+        pkt->setLE<uint32_t>(16);
+
+        return true;
+    }
+
     return false;
 }
 
@@ -276,8 +293,10 @@ void
 AMDGPUNbio::writeFrame(PacketPtr pkt, Addr offset)
 {
     if (offset == psp_ring_listen_addr) {
-        DPRINTF(AMDGPUDevice, "Saw psp_ring_listen_addr with size %ld value "
-                "%ld\n", pkt->getSize(), pkt->getUintX(ByteOrder::little));
+        DPRINTF(AMDGPUDevice,
+                "Saw psp_ring_listen_addr with size %ld value "
+                "%#lx\n",
+                pkt->getSize(), pkt->getUintX(ByteOrder::little));
 
         /*
          * In ROCm versions 4.x this packet is a 4 byte value. In ROCm 5.x
@@ -287,8 +306,8 @@ AMDGPUNbio::writeFrame(PacketPtr pkt, Addr offset)
         if (pkt->getSize() == 4) {
             psp_ring_dev_addr = pkt->getLE<uint32_t>();
         } else if (pkt->getSize() == 8) {
-            psp_ring_dev_addr = pkt->getUintX(ByteOrder::little)
-                              - gpuDevice->getVM().getSysAddrRangeLow();
+            psp_ring_dev_addr = pkt->getUintX(ByteOrder::little) -
+                                gpuDevice->getVM().getMMHUBBase();
         } else {
             panic("Invalid write size to psp_ring_listen_addr\n");
         }

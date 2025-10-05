@@ -38,6 +38,7 @@ from m5.objects.PciDevice import (
     PciMemBar,
     PciMemUpperBar,
 )
+from m5.objects.SimObject import SimObject
 from m5.params import *
 from m5.proxy import *
 
@@ -70,6 +71,10 @@ class AMDGPUDevice(PciEndpoint):
     ProgIF = 0x00
 
     gpu_id = Param.Int(0, "ID of GPU, if multiple GPUs are instantiated")
+    xgmi_hive = Param.XGMIHive(
+        NULL, "XGMI hive this GPU belongs to or NULL if xGMI is disabled."
+    )
+    xgmi_node = Param.Int(0, "xGMI node id or 0 is xGMI is disabled.")
 
     # Use max possible BAR size for Vega 10. We can override with driver param
     BAR0 = PciMemBar(size="16GiB")
@@ -145,3 +150,15 @@ class AMDGPUSystemHub(DmaDevice):
     type = "AMDGPUSystemHub"
     cxx_class = "gem5::AMDGPUSystemHub"
     cxx_header = "dev/amdgpu/system_hub.hh"
+
+
+class XGMIHive(SimObject):
+    type = "XGMIHive"
+    cxx_class = "gem5::XGMIHive"
+    cxx_header = "dev/amdgpu/xgmi_hive.hh"
+
+    hive_id = Param.Int(
+        0,
+        "Id of XGMI hive. GPUs in the same hive can communicate directly "
+        "device-to-device.",
+    )

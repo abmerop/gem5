@@ -284,7 +284,13 @@ RubyPort::MemResponsePort::recvTimingReq(PacketPtr pkt)
     // pio port.
     if (pkt->cmd != MemCmd::MemSyncReq && !pkt->req->hasNoAddr()) {
         if (!pkt->req->isMemMgmt() && !isPhysMemAddress(pkt)) {
-            assert(owner.memRequestPort.isConnected());
+            if (!owner.memRequestPort.isConnected()) {
+                warn("Possible XGMI timing access from %s\n",
+                        owner.name().c_str());
+            }
+            panic_if(!owner.memRequestPort.isConnected(),
+                     "No PIO request port connected to handle address %#lx\n",
+                     pkt->getAddr());
             DPRINTF(RubyPort, "Request address %#x assumed to be a "
                     "pio address\n", pkt->getAddr());
 
@@ -354,7 +360,13 @@ RubyPort::MemResponsePort::recvAtomic(PacketPtr pkt)
     // pio port.
     if (pkt->cmd != MemCmd::MemSyncReq) {
         if (!isPhysMemAddress(pkt)) {
-            assert(owner.memRequestPort.isConnected());
+            if (!owner.memRequestPort.isConnected()) {
+                warn("Possible XGMI atomic access from %s\n",
+                        owner.name().c_str());
+            }
+            panic_if(!owner.memRequestPort.isConnected(),
+                     "No PIO request port connected to handle address %#lx\n",
+                     pkt->getAddr());
             DPRINTF(RubyPort, "Request address %#x assumed to be a "
                     "pio address\n", pkt->getAddr());
 
@@ -426,7 +438,13 @@ RubyPort::MemResponsePort::recvFunctional(PacketPtr pkt)
     // pio port.
     if (!isPhysMemAddress(pkt)) {
         DPRINTF(RubyPort, "Pio Request for address: 0x%#x\n", pkt->getAddr());
-        assert(owner.pioRequestPort.isConnected());
+        if (!owner.memRequestPort.isConnected()) {
+            warn("Possible XGMI functional access from %s\n",
+                    owner.name().c_str());
+        }
+        panic_if(!owner.memRequestPort.isConnected(),
+                 "No PIO request port connected to handle address %#lx\n",
+                 pkt->getAddr());
         owner.pioRequestPort.sendFunctional(pkt);
         return;
     }

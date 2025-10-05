@@ -283,7 +283,16 @@ class ViperGPUCacheHierarchy(AbstractRubyCacheHierarchy):
 
             self._dma_controllers.append(ctrl)
 
-        gpu_memory.set_memory_range([AddrRange(0, size=gpu_memory.get_size())])
+        mem_start = 0
+        if shader.get_xgmi_enabled():
+            mem_start = shader.get_shader_id() * gpu_memory.get_size()
+            print(
+                f"{mem_start = } for shader {shader.get_shader_id()} size {gpu_memory.get_size()}"
+            )
+
+        gpu_memory.set_memory_range(
+            [AddrRange(mem_start, size=gpu_memory.get_size())]
+        )
         self._mem_ctrls = gpu_memory.get_memory_controllers()
         for addr_range, port in gpu_memory.get_mem_ports():
             dir = ViperGPUDirectory(

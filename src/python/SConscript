@@ -211,6 +211,8 @@ PySource('gem5.components.devices.gpus',
     'gem5/components/devices/gpus/amdgpu.py')
 PySource('gem5.components.devices.gpus',
     'gem5/components/devices/gpus/viper_shader.py')
+PySource('gem5.components.devices.gpus',
+    'gem5/components/devices/gpus/xgmi.py')
 
 PySource('gem5.components.memory', 'gem5/components/memory/__init__.py')
 PySource('gem5.components.memory', 'gem5/components/memory/abstract_memory_system.py')

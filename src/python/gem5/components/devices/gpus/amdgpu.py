@@ -36,6 +36,7 @@ from m5.objects import (
 from ....components.memory.abstract_memory_system import AbstractMemorySystem
 from ....prebuilt.viper.gpu_cache_hierarchy import ViperGPUCacheHierarchy
 from .viper_shader import ViperShader
+from .xgmi import xGMIHive
 
 
 class BaseViperGPU(SubSystem):
@@ -203,6 +204,7 @@ class MI300X(BaseViperGPU):
     def __init__(
         self,
         gpu_memory: AbstractMemorySystem,
+        xgmi_hive: xGMIHive = None,
         num_cus: int = 40,
         cu_per_sqc: int = 4,
         tcp_size: str = "16KiB",
@@ -237,6 +239,12 @@ class MI300X(BaseViperGPU):
         self.device.SubsystemID = 0x0C34
         self.device.BAR5 = PciMemBar(size="2MiB")
 
+        xgmi_enabled = True if xgmi_hive is not None else False
+
+        if xgmi_hive is not None:
+            self.device.xgmi_hive = xgmi_hive.get_hive()
+            xgmi_hive.addGPU(self.device)
+
         # Setup device-specific address ranges for various SoC components.
         shader = ViperShader(
             self._my_id,
@@ -244,6 +252,7 @@ class MI300X(BaseViperGPU):
             cache_line_size,
             self.device,
             gpu_memory.get_size(),
+            xgmi_enabled,
         )
         self.set_shader(shader)
 
@@ -301,6 +310,9 @@ class MI300X(BaseViperGPU):
             "export LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH\n"
             "export HSA_ENABLE_INTERRUPT=0\n"
             "export HCC_AMDGPU_TARGET=gfx942\n"
+            "lspci -v\n"
+            "uname -r\n"
+            "dmesg -n8\n"
             f"{debug_commands}\n"
             "dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128\n"
             # Check if exists (backwards compat with ROCm <7.0)
@@ -341,6 +353,7 @@ class MI355X(MI300X):
     ):
         super().__init__(
             gpu_memory=gpu_memory,
+            xgmi_hive=xgmi_hive,
             num_cus=num_cus,
             cu_per_sqc=cu_per_sqc,
             tcp_size=tcp_size,
@@ -364,6 +377,9 @@ class MI355X(MI300X):
             "export LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH\n"
             "export HSA_ENABLE_INTERRUPT=0\n"
             "export HCC_AMDGPU_TARGET=gfx950\n"
+            "lspci -v\n"
+            "uname -r\n"
+            "dmesg -n8\n"
             f"{debug_commands}\n"
             "dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128\n"
             "if [ -e /usr/lib/firmware/amdgpu/mi350_discovery ]; then\n"

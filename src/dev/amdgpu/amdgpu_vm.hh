@@ -106,6 +106,9 @@
 #define MI300X_FB_LOCATION_TOP                                       0x63274
 #define MI300X_VM_INVALIDATE_ENG17_ACK                                0x08a6
 
+#define MI300X_XGMI_LFB_CTRL                                          0x0957
+#define MI300X_XGMI_LFB_SIZE                                          0x0958
+
 // AMD GPUs support 16 different virtual address spaces
 static constexpr int AMDGPU_VM_COUNT = 16;
 

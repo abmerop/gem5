@@ -38,6 +38,7 @@
 #include "dev/amdgpu/interrupt_handler.hh"
 #include "dev/amdgpu/sdma_commands.hh"
 #include "dev/amdgpu/sdma_mmio.hh"
+#include "dev/amdgpu/xgmi_hive.hh"
 #include "gpu-compute/gpu_command_processor.hh"
 #include "mem/packet.hh"
 #include "mem/packet_access.hh"
@@ -747,6 +748,9 @@ SDMAEngine::copy(SDMAQueue *q, sdmaCopy *pkt)
                                                 gen.last() ? cb : nullptr);
             buffer_ptr += gen.size();
         }
+    } else if (gpuDevice->getXgmiHive()->isXgmiAddress(pkt->source)) {
+        DPRINTF(SDMAEngine, "Copying from XGMI address %#lx\n", pkt->source);
+        panic("XGMI communication not yet implemented!\n");
     } else {
         auto cb = new DmaVirtCallback<uint64_t>(
             [ = ] (const uint64_t &) { copyReadData(q, pkt, dmaBuffer); });
@@ -795,6 +799,9 @@ SDMAEngine::copyReadData(SDMAQueue *q, sdmaCopy *pkt, uint8_t *dmaBuffer)
 
             buffer_ptr += gen.size();
         }
+    } else if (gpuDevice->getXgmiHive()->isXgmiAddress(pkt->source)) {
+        DPRINTF(SDMAEngine, "Copying to XGMI address %#lx\n", pkt->source);
+        panic("XGMI communication not yet implemented!\n");
     } else {
         DPRINTF(SDMAEngine, "Copying to host address %#lx\n", pkt->dest);
         auto cb = new DmaVirtCallback<uint64_t>(

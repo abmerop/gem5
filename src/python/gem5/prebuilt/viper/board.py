@@ -51,6 +51,7 @@ from ...components.cachehierarchies.abstract_cache_hierarchy import (
     AbstractCacheHierarchy,
 )
 from ...components.devices.gpus.amdgpu import BaseViperGPU
+from ...components.devices.gpus.xgmi import xGMIHive
 from ...components.memory.abstract_memory_system import AbstractMemorySystem
 from ...components.memory.single_channel import SingleChannelDDR4_2400
 from ...components.processors.abstract_processor import AbstractProcessor
@@ -79,7 +80,8 @@ class ViperBoard(X86Board):
         processor: AbstractProcessor,
         memory: AbstractMemorySystem,
         cache_hierarchy: AbstractCacheHierarchy,
-        gpus: Optional[List[BaseViperGPU]] = None,
+        gpus: List[BaseViperGPU],
+        xgmi_hives: Optional[List[xGMIHive]] = None,
     ) -> None:
         super().__init__(
             clk_freq=clk_freq,
@@ -98,6 +100,11 @@ class ViperBoard(X86Board):
         )
 
         self.gpus = gpus
+
+        # If the optional param is None then the assignment will fail with
+        # Class ViperBoard has no parameter xgmi_hives, so check first.
+        if xgmi_hives is not None:
+            self.xgmi_hives = xgmi_hives
 
     @overrides(AbstractCacheHierarchy)
     def get_coherence_protocol(self):

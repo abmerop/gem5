@@ -793,8 +793,15 @@ RubySystem::functionalWrite(PacketPtr pkt)
         }
     }
 
-    for (auto& network : m_networks) {
-        num_functional_writes += network->functionalWrite(pkt);
+    // Slight performance hack for loading Linux kernel into CPU memory upon
+    // simulation start. At tick=0 no network buffers should contain any data
+    // and therefore do not need to be checked. This greatly improves start up
+    // time for simulations of large configurations, multiple RubySystems like
+    // for mGPU, etc.
+    if (curTick() != 0) {
+        for (auto &network : m_networks) {
+            num_functional_writes += network->functionalWrite(pkt);
+        }
     }
     DPRINTF(RubySystem, "Messages written = %u\n", num_functional_writes);
 
