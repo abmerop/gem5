@@ -94,6 +94,124 @@ namespace VegaISA
         }
         vdst.write();
     } // execute
+    // --- Inst_FLAT__FLAT_LOAD_UBYTE_D16 class methods ---
+
+    Inst_FLAT__FLAT_LOAD_UBYTE_D16::Inst_FLAT__FLAT_LOAD_UBYTE_D16(
+        InFmt_FLAT *iFmt)
+        : Inst_FLAT(iFmt, "flat_load_ubyte_d16")
+    {
+        setFlag(Load);
+    } // Inst_FLAT__FLAT_LOAD_UBYTE_D16
+
+    Inst_FLAT__FLAT_LOAD_UBYTE_D16::~Inst_FLAT__FLAT_LOAD_UBYTE_D16()
+    {} // ~Inst_FLAT__FLAT_LOAD_UBYTE_D16
+
+    void
+    Inst_FLAT__FLAT_LOAD_UBYTE_D16::execute(GPUDynInstPtr gpuDynInst)
+    {
+        Wavefront *wf = gpuDynInst->wavefront();
+
+        if (gpuDynInst->exec_mask.none()) {
+            wf->decVMemInstsIssued();
+            wf->untrackVMemInst(gpuDynInst);
+            if (isFlat()) {
+                wf->decLGKMInstsIssued();
+                wf->untrackLGKMInst(gpuDynInst);
+            }
+            return;
+        }
+
+        gpuDynInst->execUnitId = wf->execUnitId;
+        gpuDynInst->latency.init(gpuDynInst->computeUnit());
+        gpuDynInst->latency.set(gpuDynInst->computeUnit()->clockPeriod());
+
+        calcAddr(gpuDynInst, extData.ADDR, extData.SADDR, instData.OFFSET);
+
+        issueRequestHelper(gpuDynInst);
+    } // execute
+
+    void
+    Inst_FLAT__FLAT_LOAD_UBYTE_D16::initiateAcc(GPUDynInstPtr gpuDynInst)
+    {
+        initMemRead<VecElemU8>(gpuDynInst);
+    } // initiateAcc
+
+    void
+    Inst_FLAT__FLAT_LOAD_UBYTE_D16::completeAcc(GPUDynInstPtr gpuDynInst)
+    {
+        VecOperandU32 vdst(gpuDynInst, extData.VDST);
+
+        // Read vdst to preserve bytes
+        vdst.read();
+
+        for (int lane = 0; lane < NumVecElemPerVecReg; ++lane) {
+            if (gpuDynInst->exec_mask[lane]) {
+                VecElemU16 tmp = (VecElemU16)((
+                    reinterpret_cast<VecElemU8 *>(gpuDynInst->d_data))[lane]);
+                replaceBits(vdst[lane], 15, 0, tmp);
+            }
+        }
+        vdst.write();
+    } // completeAcc
+    // --- Inst_FLAT__FLAT_LOAD_UBYTE_D16_HI class methods ---
+
+    Inst_FLAT__FLAT_LOAD_UBYTE_D16_HI::Inst_FLAT__FLAT_LOAD_UBYTE_D16_HI(
+        InFmt_FLAT *iFmt)
+        : Inst_FLAT(iFmt, "flat_load_ubyte_d16_hi")
+    {
+        setFlag(Load);
+    } // Inst_FLAT__FLAT_LOAD_UBYTE_D16_HI
+
+    Inst_FLAT__FLAT_LOAD_UBYTE_D16_HI::~Inst_FLAT__FLAT_LOAD_UBYTE_D16_HI()
+    {} // ~Inst_FLAT__FLAT_LOAD_UBYTE_D16_HI
+
+    void
+    Inst_FLAT__FLAT_LOAD_UBYTE_D16_HI::execute(GPUDynInstPtr gpuDynInst)
+    {
+        Wavefront *wf = gpuDynInst->wavefront();
+
+        if (gpuDynInst->exec_mask.none()) {
+            wf->decVMemInstsIssued();
+            wf->untrackVMemInst(gpuDynInst);
+            if (isFlat()) {
+                wf->decLGKMInstsIssued();
+                wf->untrackLGKMInst(gpuDynInst);
+            }
+            return;
+        }
+
+        gpuDynInst->execUnitId = wf->execUnitId;
+        gpuDynInst->latency.init(gpuDynInst->computeUnit());
+        gpuDynInst->latency.set(gpuDynInst->computeUnit()->clockPeriod());
+
+        calcAddr(gpuDynInst, extData.ADDR, extData.SADDR, instData.OFFSET);
+
+        issueRequestHelper(gpuDynInst);
+    } // execute
+
+    void
+    Inst_FLAT__FLAT_LOAD_UBYTE_D16_HI::initiateAcc(GPUDynInstPtr gpuDynInst)
+    {
+        initMemRead<VecElemU8>(gpuDynInst);
+    } // initiateAcc
+
+    void
+    Inst_FLAT__FLAT_LOAD_UBYTE_D16_HI::completeAcc(GPUDynInstPtr gpuDynInst)
+    {
+        VecOperandU32 vdst(gpuDynInst, extData.VDST);
+
+        // Read vdst to preserve bytes
+        vdst.read();
+
+        for (int lane = 0; lane < NumVecElemPerVecReg; ++lane) {
+            if (gpuDynInst->exec_mask[lane]) {
+                VecElemU16 tmp = (VecElemU16)((
+                    reinterpret_cast<VecElemU8 *>(gpuDynInst->d_data))[lane]);
+                replaceBits(vdst[lane], 31, 16, tmp);
+            }
+        }
+        vdst.write();
+    } // completeAcc
     // --- Inst_FLAT__FLAT_LOAD_SBYTE class methods ---
 
     Inst_FLAT__FLAT_LOAD_SBYTE::Inst_FLAT__FLAT_LOAD_SBYTE(InFmt_FLAT *iFmt)
@@ -148,6 +266,124 @@ namespace VegaISA
             if (gpuDynInst->exec_mask[lane]) {
                 vdst[lane] = (VecElemI32)((reinterpret_cast<VecElemI8*>(
                     gpuDynInst->d_data))[lane]);
+            }
+        }
+        vdst.write();
+    } // execute
+    // --- Inst_FLAT__FLAT_LOAD_SBYTE_D16 class methods ---
+
+    Inst_FLAT__FLAT_LOAD_SBYTE_D16 ::Inst_FLAT__FLAT_LOAD_SBYTE_D16(
+        InFmt_FLAT *iFmt)
+        : Inst_FLAT(iFmt, "flat_load_sbyte_d16")
+    {
+        setFlag(Load);
+    } // Inst_FLAT__FLAT_LOAD_SBYTE_D16
+
+    Inst_FLAT__FLAT_LOAD_SBYTE_D16::~Inst_FLAT__FLAT_LOAD_SBYTE_D16()
+    {} // ~Inst_FLAT__FLAT_LOAD_SBYTE_D16
+
+    void
+    Inst_FLAT__FLAT_LOAD_SBYTE_D16::execute(GPUDynInstPtr gpuDynInst)
+    {
+        Wavefront *wf = gpuDynInst->wavefront();
+
+        if (gpuDynInst->exec_mask.none()) {
+            wf->decVMemInstsIssued();
+            wf->untrackVMemInst(gpuDynInst);
+            if (isFlat()) {
+                wf->decLGKMInstsIssued();
+                wf->untrackLGKMInst(gpuDynInst);
+            }
+            return;
+        }
+
+        gpuDynInst->execUnitId = wf->execUnitId;
+        gpuDynInst->latency.init(gpuDynInst->computeUnit());
+        gpuDynInst->latency.set(gpuDynInst->computeUnit()->clockPeriod());
+
+        calcAddr(gpuDynInst, extData.ADDR, extData.SADDR, instData.OFFSET);
+
+        issueRequestHelper(gpuDynInst);
+    } // execute
+
+    void
+    Inst_FLAT__FLAT_LOAD_SBYTE_D16::initiateAcc(GPUDynInstPtr gpuDynInst)
+    {
+        initMemRead<VecElemI8>(gpuDynInst);
+    } // initiateAcc
+
+    void
+    Inst_FLAT__FLAT_LOAD_SBYTE_D16::completeAcc(GPUDynInstPtr gpuDynInst)
+    {
+        VecOperandU32 vdst(gpuDynInst, extData.VDST);
+
+        // Read vdst to preserve bytes
+        vdst.read();
+
+        for (int lane = 0; lane < NumVecElemPerVecReg; ++lane) {
+            if (gpuDynInst->exec_mask[lane]) {
+                VecElemI16 tmp = (VecElemI16)((
+                    reinterpret_cast<VecElemI8 *>(gpuDynInst->d_data))[lane]);
+                replaceBits(vdst[lane], 15, 0, tmp);
+            }
+        }
+        vdst.write();
+    } // execute
+    // --- Inst_FLAT__FLAT_LOAD_SBYTE_D16_HI class methods ---
+
+    Inst_FLAT__FLAT_LOAD_SBYTE_D16_HI ::Inst_FLAT__FLAT_LOAD_SBYTE_D16_HI(
+        InFmt_FLAT *iFmt)
+        : Inst_FLAT(iFmt, "flat_load_sbyte_d16_hi")
+    {
+        setFlag(Load);
+    } // Inst_FLAT__FLAT_LOAD_SBYTE_D16_HI
+
+    Inst_FLAT__FLAT_LOAD_SBYTE_D16_HI::~Inst_FLAT__FLAT_LOAD_SBYTE_D16_HI()
+    {} // ~Inst_FLAT__FLAT_LOAD_SBYTE_D16_HI
+
+    void
+    Inst_FLAT__FLAT_LOAD_SBYTE_D16_HI::execute(GPUDynInstPtr gpuDynInst)
+    {
+        Wavefront *wf = gpuDynInst->wavefront();
+
+        if (gpuDynInst->exec_mask.none()) {
+            wf->decVMemInstsIssued();
+            wf->untrackVMemInst(gpuDynInst);
+            if (isFlat()) {
+                wf->decLGKMInstsIssued();
+                wf->untrackLGKMInst(gpuDynInst);
+            }
+            return;
+        }
+
+        gpuDynInst->execUnitId = wf->execUnitId;
+        gpuDynInst->latency.init(gpuDynInst->computeUnit());
+        gpuDynInst->latency.set(gpuDynInst->computeUnit()->clockPeriod());
+
+        calcAddr(gpuDynInst, extData.ADDR, extData.SADDR, instData.OFFSET);
+
+        issueRequestHelper(gpuDynInst);
+    } // execute
+
+    void
+    Inst_FLAT__FLAT_LOAD_SBYTE_D16_HI::initiateAcc(GPUDynInstPtr gpuDynInst)
+    {
+        initMemRead<VecElemI8>(gpuDynInst);
+    } // initiateAcc
+
+    void
+    Inst_FLAT__FLAT_LOAD_SBYTE_D16_HI::completeAcc(GPUDynInstPtr gpuDynInst)
+    {
+        VecOperandU32 vdst(gpuDynInst, extData.VDST);
+
+        // Read vdst to preserve bytes
+        vdst.read();
+
+        for (int lane = 0; lane < NumVecElemPerVecReg; ++lane) {
+            if (gpuDynInst->exec_mask[lane]) {
+                VecElemI16 tmp = (VecElemI16)((
+                    reinterpret_cast<VecElemI8 *>(gpuDynInst->d_data))[lane]);
+                replaceBits(vdst[lane], 31, 16, tmp);
             }
         }
         vdst.write();
@@ -209,8 +445,125 @@ namespace VegaISA
             }
         }
         vdst.write();
+    } // completeAcc
+    // --- Inst_FLAT__FLAT_LOAD_SHORT_D16 class methods ---
+
+    Inst_FLAT__FLAT_LOAD_SHORT_D16::Inst_FLAT__FLAT_LOAD_SHORT_D16(
+        InFmt_FLAT *iFmt)
+        : Inst_FLAT(iFmt, "flat_load_short_d16")
+    {
+        setFlag(Load);
+    } // Inst_FLAT__FLAT_LOAD_SHORT_D16
+
+    Inst_FLAT__FLAT_LOAD_SHORT_D16::~Inst_FLAT__FLAT_LOAD_SHORT_D16()
+    {} // ~Inst_FLAT__FLAT_LOAD_SHORT_D16
+
+    void
+    Inst_FLAT__FLAT_LOAD_SHORT_D16::execute(GPUDynInstPtr gpuDynInst)
+    {
+        Wavefront *wf = gpuDynInst->wavefront();
+
+        if (gpuDynInst->exec_mask.none()) {
+            wf->decVMemInstsIssued();
+            wf->untrackVMemInst(gpuDynInst);
+            if (isFlat()) {
+                wf->decLGKMInstsIssued();
+                wf->untrackLGKMInst(gpuDynInst);
+            }
+            return;
+        }
+
+        gpuDynInst->execUnitId = wf->execUnitId;
+        gpuDynInst->latency.init(gpuDynInst->computeUnit());
+        gpuDynInst->latency.set(gpuDynInst->computeUnit()->clockPeriod());
+
+        calcAddr(gpuDynInst, extData.ADDR, extData.SADDR, instData.OFFSET);
+
+        issueRequestHelper(gpuDynInst);
     } // execute
 
+    void
+    Inst_FLAT__FLAT_LOAD_SHORT_D16::initiateAcc(GPUDynInstPtr gpuDynInst)
+    {
+        initMemRead<VecElemU16>(gpuDynInst);
+    } // initiateAcc
+
+    void
+    Inst_FLAT__FLAT_LOAD_SHORT_D16::completeAcc(GPUDynInstPtr gpuDynInst)
+    {
+        VecOperandU32 vdst(gpuDynInst, extData.VDST);
+
+        // Read vdst to preserve bytes
+        vdst.read();
+
+        for (int lane = 0; lane < NumVecElemPerVecReg; ++lane) {
+            if (gpuDynInst->exec_mask[lane]) {
+                VecElemU16 tmp = (VecElemU16)((
+                    reinterpret_cast<VecElemU16 *>(gpuDynInst->d_data))[lane]);
+                replaceBits(vdst[lane], 15, 0, tmp);
+            }
+        }
+        vdst.write();
+    } // completeAcc
+    // --- Inst_FLAT__FLAT_LOAD_SHORT_D16_HI class methods ---
+
+    Inst_FLAT__FLAT_LOAD_SHORT_D16_HI::Inst_FLAT__FLAT_LOAD_SHORT_D16_HI(
+        InFmt_FLAT *iFmt)
+        : Inst_FLAT(iFmt, "flat_load_short_d16_hi")
+    {
+        setFlag(Load);
+    } // Inst_FLAT__FLAT_LOAD_SHORT_D16_HI
+
+    Inst_FLAT__FLAT_LOAD_SHORT_D16_HI::~Inst_FLAT__FLAT_LOAD_SHORT_D16_HI()
+    {} // ~Inst_FLAT__FLAT_LOAD_SHORT_D16_HI
+
+    void
+    Inst_FLAT__FLAT_LOAD_SHORT_D16_HI::execute(GPUDynInstPtr gpuDynInst)
+    {
+        Wavefront *wf = gpuDynInst->wavefront();
+
+        if (gpuDynInst->exec_mask.none()) {
+            wf->decVMemInstsIssued();
+            wf->untrackVMemInst(gpuDynInst);
+            if (isFlat()) {
+                wf->decLGKMInstsIssued();
+                wf->untrackLGKMInst(gpuDynInst);
+            }
+            return;
+        }
+
+        gpuDynInst->execUnitId = wf->execUnitId;
+        gpuDynInst->latency.init(gpuDynInst->computeUnit());
+        gpuDynInst->latency.set(gpuDynInst->computeUnit()->clockPeriod());
+
+        calcAddr(gpuDynInst, extData.ADDR, extData.SADDR, instData.OFFSET);
+
+        issueRequestHelper(gpuDynInst);
+    } // execute
+
+    void
+    Inst_FLAT__FLAT_LOAD_SHORT_D16_HI::initiateAcc(GPUDynInstPtr gpuDynInst)
+    {
+        initMemRead<VecElemU16>(gpuDynInst);
+    } // initiateAcc
+
+    void
+    Inst_FLAT__FLAT_LOAD_SHORT_D16_HI::completeAcc(GPUDynInstPtr gpuDynInst)
+    {
+        VecOperandU32 vdst(gpuDynInst, extData.VDST);
+
+        // Read vdst to preserve bytes
+        vdst.read();
+
+        for (int lane = 0; lane < NumVecElemPerVecReg; ++lane) {
+            if (gpuDynInst->exec_mask[lane]) {
+                VecElemU16 tmp = (VecElemU16)((
+                    reinterpret_cast<VecElemU16 *>(gpuDynInst->d_data))[lane]);
+                replaceBits(vdst[lane], 31, 16, tmp);
+            }
+        }
+        vdst.write();
+    } // completeAcc
     // --- Inst_FLAT__FLAT_LOAD_SSHORT class methods ---
 
     Inst_FLAT__FLAT_LOAD_SSHORT::Inst_FLAT__FLAT_LOAD_SSHORT(InFmt_FLAT *iFmt)
@@ -590,8 +943,63 @@ namespace VegaISA
 
     void
     Inst_FLAT__FLAT_STORE_BYTE::completeAcc(GPUDynInstPtr gpuDynInst)
+    {} // completeAcc
+    // --- Inst_FLAT__FLAT_STORE_BYTE_D16_HI class methods ---
+
+    Inst_FLAT__FLAT_STORE_BYTE_D16_HI::Inst_FLAT__FLAT_STORE_BYTE_D16_HI(
+        InFmt_FLAT *iFmt)
+        : Inst_FLAT(iFmt, "flat_store_byte_d16_hi")
     {
+        setFlag(Store);
+    } // Inst_FLAT__FLAT_STORE_BYTE_D16_HI
+
+    Inst_FLAT__FLAT_STORE_BYTE_D16_HI::~Inst_FLAT__FLAT_STORE_BYTE_D16_HI()
+    {} // ~Inst_FLAT__FLAT_STORE_BYTE_D16_HI
+
+    void
+    Inst_FLAT__FLAT_STORE_BYTE_D16_HI::execute(GPUDynInstPtr gpuDynInst)
+    {
+        Wavefront *wf = gpuDynInst->wavefront();
+
+        if (gpuDynInst->exec_mask.none()) {
+            wf->decVMemInstsIssued();
+            wf->untrackVMemInst(gpuDynInst);
+            if (isFlat()) {
+                wf->decLGKMInstsIssued();
+                wf->untrackLGKMInst(gpuDynInst);
+            }
+            return;
+        }
+
+        gpuDynInst->execUnitId = wf->execUnitId;
+        gpuDynInst->latency.init(gpuDynInst->computeUnit());
+        gpuDynInst->latency.set(gpuDynInst->computeUnit()->clockPeriod());
+
+        ConstVecOperandU8 data(gpuDynInst, extData.DATA);
+
+        data.read();
+
+        calcAddr(gpuDynInst, extData.ADDR, extData.SADDR, instData.OFFSET);
+
+        for (int lane = 0; lane < NumVecElemPerVecReg; ++lane) {
+            if (gpuDynInst->exec_mask[lane]) {
+                (reinterpret_cast<VecElemU8 *>(gpuDynInst->d_data))[lane] =
+                    (bits(data[lane], 23, 16));
+            }
+        }
+
+        issueRequestHelper(gpuDynInst);
     } // execute
+
+    void
+    Inst_FLAT__FLAT_STORE_BYTE_D16_HI::initiateAcc(GPUDynInstPtr gpuDynInst)
+    {
+        initMemWrite<VecElemU8>(gpuDynInst);
+    } // initiateAcc
+
+    void
+    Inst_FLAT__FLAT_STORE_BYTE_D16_HI::completeAcc(GPUDynInstPtr gpuDynInst)
+    {} // completeAcc
     // --- Inst_FLAT__FLAT_STORE_SHORT class methods ---
 
     Inst_FLAT__FLAT_STORE_SHORT::Inst_FLAT__FLAT_STORE_SHORT(InFmt_FLAT *iFmt)
@@ -682,8 +1090,6 @@ namespace VegaISA
                 wf->decLGKMInstsIssued();
                 wf->untrackLGKMInst(gpuDynInst);
             }
-            wf->decExpInstsIssued();
-            wf->untrackExpInst(gpuDynInst);
             return;
         }
 
