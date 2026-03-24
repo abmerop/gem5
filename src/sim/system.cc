@@ -232,7 +232,8 @@ void
 System::setMemoryMode(enums::MemoryMode mode)
 {
     assert(drainState() == DrainState::Drained);
-    memoryMode = mode;
+    warn("Ignoring setMemoryMode after initialization.");
+    // memoryMode = mode;
 }
 
 void
