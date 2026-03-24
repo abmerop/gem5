@@ -117,6 +117,10 @@ GPUDispatcher::dispatch(HSAQueueEntry *task)
 {
     ++stats.numKernelLaunched;
 
+    if (kernelExitEvents) {
+        exitSimLoopNow("Kernel started");
+    }
+
     DPRINTF(GPUDisp, "launching kernel: %s, dispatch ID: %d\n",
             task->kernelName(), task->dispatchId());
     DPRINTF(GPUAgentDisp, "launching kernel: %s, dispatch ID: %d\n",
