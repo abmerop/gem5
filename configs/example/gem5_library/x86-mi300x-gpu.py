@@ -54,12 +54,17 @@ Example:
 
 import argparse
 
+import m5
+
 from gem5.coherence_protocol import CoherenceProtocol
 from gem5.components.devices.gpus.amdgpu import MI300X
 from gem5.components.memory import HBM2Stack
 from gem5.components.memory.single_channel import SingleChannelDDR4_2400
 from gem5.components.processors.cpu_types import CPUTypes
 from gem5.components.processors.simple_processor import SimpleProcessor
+from gem5.components.processors.simple_switchable_processor import (
+    SimpleSwitchableProcessor,
+)
 from gem5.isas import ISA
 from gem5.prebuilt.viper.board import ViperBoard
 from gem5.prebuilt.viper.cpu_cache_hierarchy import ViperCPUCacheHierarchy
@@ -67,7 +72,10 @@ from gem5.resources.resource import (
     DiskImageResource,
     FileResource,
 )
-from gem5.simulate.simulator import Simulator
+from gem5.simulate.simulator import (
+    ExitEvent,
+    Simulator,
+)
 from gem5.utils.requires import requires
 
 requires(
@@ -112,16 +120,27 @@ parser.add_argument(
     help="Use KVM perf counters to give accurate GPU insts/cycles with KVM",
 )
 
+parser.add_argument(
+    "--switch-cpu-every-kernel",
+    default=False,
+    action="store_true",
+    help="Switch to atomic CPU at kernel start and KVM at kernel end",
+)
+
 args = parser.parse_args()
 
 memory = SingleChannelDDR4_2400(size="8GiB")
 
-# Note: Only KVM and ATOMIC work due to buggy MOESI_AMD_Base protocol.
-processor = SimpleProcessor(cpu_type=CPUTypes.KVM, isa=ISA.X86, num_cores=1)
+# Note: Only KVM is extensively tested and supported.
+processor = SimpleSwitchableProcessor(
+    starting_core_type=CPUTypes.KVM,
+    switch_core_type=CPUTypes.ATOMIC,
+    isa=ISA.X86,
+    num_cores=1,
+)
 
-for core in processor.cores:
-    if core.is_kvm_core():
-        core.get_simobject().usePerf = args.kvm_perf
+for proc in processor.start:
+    proc.core.usePerf = args.kvm_perf
 
 # The GPU must be created first so we can assign CPU-side DMA ports to the
 # CPU cache hierarchy.
@@ -146,5 +165,35 @@ board.set_kernel_disk_workload(
     readfile_contents=board.make_gpu_app(gpu0, args.app, args.opts),
 )
 
-simulator = Simulator(board=board)
+
+def handle_kernel_start():
+    switched = False
+    while True:
+        print(f"Resetting stats because kernel started")
+        m5.stats.reset()
+        if not switched or args.switch_cpu_every_kernel:
+            simulator.switch_processor()
+            switched = True
+        yield False
+
+
+def handle_kernel_end():
+    while True:
+        print(f"Dump stats because kernel completed")
+        m5.stats.dump()
+        if args.switch_cpu_every_kernel:
+            simulator.switch_processor()
+        yield False
+
+
+simulator = Simulator(
+    board=board,
+    on_exit_event={
+        ExitEvent.KERNEL_START: handle_kernel_start(),
+        ExitEvent.KERNEL_END: handle_kernel_end(),
+        ExitEvent.BLIT_END: handle_kernel_end(),
+    },
+)
+
+
 simulator.run()
