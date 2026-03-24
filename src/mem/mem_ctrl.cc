@@ -1427,8 +1427,8 @@ MemCtrl::drain()
 {
     // if there is anything in any of our internal queues, keep track
     // of that as well
-    if (totalWriteQueueSize || totalReadQueueSize || !respQEmpty() ||
-          !allIntfDrained()) {
+    if (/*totalWriteQueueSize ||*/ totalReadQueueSize || !respQEmpty() ||
+        !allIntfDrained()) {
         DPRINTF(Drain, "Memory controller not drained, write: %d, read: %d,"
                 " resp: %d\n", totalWriteQueueSize, totalReadQueueSize,
                 respQueue.size());

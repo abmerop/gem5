@@ -146,7 +146,12 @@ DrainManager::preCheckpointRestore()
 void
 DrainManager::signalDrainDone()
 {
-    assert(_count > 0);
+    if (_count <= 0) {
+        warn("DrainManager::signalDrainDone() called when count is already "
+             "zero. "
+             "This should never happen.\n");
+        return;
+    }
     if (--_count == 0) {
         DPRINTF(Drain, "All %u objects drained..\n", drainableCount());
         exitSimLoop("Finished drain", 0);
