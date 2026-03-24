@@ -300,6 +300,7 @@ class MI300X(BaseViperGPU):
             "export LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH\n"
             "export HSA_ENABLE_INTERRUPT=0\n"
             "export HCC_AMDGPU_TARGET=gfx942\n"
+            "echo 0 > /proc/sys/kernel/randomize_va_space\n"
             f"{debug_commands}\n"
             "dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128\n"
             # Check if exists (backwards compat with ROCm <7.0)
