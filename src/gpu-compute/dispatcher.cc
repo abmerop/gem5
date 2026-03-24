@@ -187,7 +187,9 @@ GPUDispatcher::exec()
         // kernel invalidate is done, start workgroup dispatch
         while (!task->dispComplete()) {
             // update the thread context
-            shader->updateContext(task->contextId());
+            if (!FullSystem) {
+                shader->updateContext(task->contextId());
+            }
 
             // attempt to dispatch workgroup
             DPRINTF(GPUWgLatency, "Attempt Kernel Launch cycle:%d kernel:%d\n",

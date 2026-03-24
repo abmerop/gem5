@@ -78,7 +78,6 @@ class BaseViperGPU(SubSystem):
         # Connect a CPU pointer. This is only used for SE mode. Any CPU will
         # work, so pick assuming there is at least one
         cpus = board.get_processor()
-        self.shader.set_cpu_pointer(cpus.cores[0].core)
 
         # Connect all PIO buses
         self.shader.connect_iobus(board.get_io_bus(), board.get_pci_bus())

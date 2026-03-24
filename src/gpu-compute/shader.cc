@@ -151,9 +151,11 @@ void
 Shader::init()
 {
     // grab the threadContext of the thread running on the CPU
-    assert(cpuPointer);
-    gpuTc = cpuPointer->getContext(0);
-    assert(gpuTc);
+    if (!FullSystem) {
+        assert(cpuPointer);
+        gpuTc = cpuPointer->getContext(0);
+        assert(gpuTc);
+    }
 }
 
 Shader::~Shader()
@@ -163,7 +165,10 @@ Shader::~Shader()
 }
 
 void
-Shader::updateContext(int cid) {
+Shader::updateContext(int cid)
+{
+    panic_if(FullSystem, "GPU thread context not used in FullSystem");
+
     // context of the thread which dispatched work
     assert(cpuPointer);
     gpuTc = cpuPointer->getContext(cid);
@@ -450,6 +455,8 @@ Shader::WriteMem(uint64_t address, void *ptr, uint32_t size, int cu_id,
 void
 Shader::functionalTLBAccess(PacketPtr pkt, int cu_id, BaseMMU::Mode mode)
 {
+    panic_if(FullSystem, "GPU thread context not used in FullSystem");
+
     // update senderState. Need to know the gpuTc and the TLB mode
     pkt->senderState =
         new GpuTranslationState(mode, gpuTc, false);
