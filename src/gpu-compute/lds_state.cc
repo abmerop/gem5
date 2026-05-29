@@ -49,6 +49,7 @@ LdsState::LdsState(const Params &params)
     : ClockedObject(params),
       tickEvent(this),
       cuPort(name() + ".port", this),
+      bytes_left(this, "Bytes Left"),
       maximumSize(params.size),
       range(params.range),
       bankConflictPenalty(params.bankConflictPenalty),
@@ -61,6 +62,8 @@ LdsState::LdsState(const Params &params)
     fatal_if(params.size <= 0,
              "cannot allocate an LDS with a size less than 1");
     fatal_if(params.size % 2, "the LDS should be an even number");
+
+    bytes_left = maximumSize;
 }
 
 /**

@@ -237,6 +237,7 @@ class Wavefront : public SimObject
 
     // unique WF id over all WFs executed across all CUs
     uint64_t wfDynId;
+    Tick wfStartTick;
 
     // dyn inst id (per SIMD) of last instruction exec from this wave
     uint64_t lastInstExec;

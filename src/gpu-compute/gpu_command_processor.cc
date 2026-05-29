@@ -338,6 +338,9 @@ GPUCommandProcessor::dispatchKernelObject(AMDKernelCode *akc, void *raw_pkt,
 
     std::string kernel_name;
 
+    // Force a Perfetto init() when first kernel launches
+    perfettoLogger.unpause();
+
     /**
      * BLIT kernels don't have symbol names.  BLIT kernels are built-in compute
      * kernels issued by ROCm to handle DMAs for dGPUs when the SDMA

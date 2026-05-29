@@ -39,6 +39,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/perfetto.hh"
 #include "debug/GPULDS.hh"
 #include "gpu-compute/misc.hh"
 #include "mem/port.hh"
@@ -419,6 +420,7 @@ class LdsState : public ClockedObject
             return nullptr;
         } else {
             bytesAllocated += size;
+            bytes_left = maximumSize - bytesAllocated;
 
             auto value = chunkMap[dispatchId].emplace(wgId, LdsChunk(size));
             panic_if(!value.second, "was unable to allocate a new chunkMap");
@@ -550,6 +552,7 @@ class LdsState : public ClockedObject
                  "releasing more space than was allocated");
 
         bytesAllocated -= chunkMap[x_dispatchId][x_wgId].size();
+        bytes_left = maximumSize - bytesAllocated;
         chunkMap[x_dispatchId].erase(chunkMap[x_dispatchId].find(x_wgId));
         return true;
     }
@@ -563,6 +566,8 @@ class LdsState : public ClockedObject
 
     // the number of bytes currently reserved by all workgroups
     int bytesAllocated = 0;
+
+    PerfettoCounter bytes_left;
 
     // the size of the LDS, the most bytes available
     int maximumSize;

@@ -664,6 +664,20 @@ Wavefront::setStatus(status_e newStatus)
             assert(computeUnit->idleWfs >= 0);
         }
     }
+
+    // Perfetto example logging
+    if (newStatus == S_STOPPED && status == S_RUNNING) {
+        auto wf_slice = perfettoSlice(this, wfStartTick, curTick(),
+                                      "WF " + std::to_string(wfDynId));
+
+        PerfettoAnnotation wf_info;
+        wf_info["Kernel Number"] = std::to_string(kernId);
+        wf_info["VGPR Allocation"] = std::to_string(maxVgprs);
+        wf_info["SGPR Allocation"] = std::to_string(maxSgprs);
+
+        perfettoLogger.writePerfettoLog(wf_slice, wf_info);
+    }
+
     status = newStatus;
 }
 
@@ -672,6 +686,7 @@ Wavefront::start(uint64_t _wf_dyn_id, Addr init_pc)
 {
     wfDynId = _wf_dyn_id;
     _pc = init_pc;
+    wfStartTick = curTick();
 
     status = S_RUNNING;
 
