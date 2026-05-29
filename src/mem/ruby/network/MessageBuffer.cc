@@ -72,6 +72,8 @@ MessageBuffer::MessageBuffer(const Params &p)
       m_allow_zero_latency(p.allow_zero_latency),
       m_routing_priority(p.routing_priority),
       m_is_inport(false),
+      perfetto_sampling(p.perfetto_sampling),
+      messages_enqueued(this, "Messages"),
       ADD_STAT(m_not_avail_count, statistics::units::Count::get(),
                "Number of times this buffer did not have N slots available"),
       ADD_STAT(m_msg_count, statistics::units::Count::get(),
@@ -236,6 +238,9 @@ MessageBuffer::enqueue(MsgPtr message, Tick current_time, Tick delta,
 
     m_msg_counter++;
     m_msgs_this_cycle++;
+    if (perfetto_sampling) {
+        messages_enqueued++;
+    }
 
     // Calculate the arrival time of the message, that is, the first
     // cycle the message can be dequeued.

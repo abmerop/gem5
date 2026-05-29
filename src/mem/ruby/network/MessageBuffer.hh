@@ -54,6 +54,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "base/perfetto.hh"
 #include "base/trace.hh"
 #include "debug/RubyQueue.hh"
 #include "mem/packet.hh"
@@ -296,6 +297,9 @@ class MessageBuffer : public SimObject
 
     int m_input_link_id;
     int m_vnet_id;
+
+    bool perfetto_sampling;
+    PerfettoCounter messages_enqueued;
 
     // Count the # of times I didn't have N slots available
     statistics::Scalar m_not_avail_count;

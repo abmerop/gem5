@@ -86,3 +86,6 @@ class MessageBuffer(SimObject):
                                      consumed by the network. Smaller value \
                                      means higher priority",
     )
+    perfetto_sampling = Param.Bool(
+        False, "Should PerfettoLogger sample from this MessageBuffer?"
+    )
