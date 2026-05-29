@@ -53,6 +53,7 @@
 #include <vector>
 
 #include "base/callback.hh"
+#include "base/perfetto.hh"
 #include "base/statistics.hh"
 #include "enums/MemSched.hh"
 #include "mem/mem_interface.hh"
@@ -559,6 +560,12 @@ class MemCtrl : public qos::MemCtrl
      * and access, it is tRP + tRCD + tCL.
      */
     Tick nextReqTime;
+
+    /**
+     * Optional Perfetto bandwidth tracking
+     */
+    PerfettoCounter perfettoTotalBW;
+    void perfettoSample();
 
     struct CtrlStats : public statistics::Group
     {
