@@ -48,9 +48,10 @@ namespace gem5
 ScoreboardCheckStage::ScoreboardCheckStage(
     const ComputeUnitParams &p, ComputeUnit &cu,
     ScoreboardCheckToSchedule &to_schedule)
-    : computeUnit(cu),
+    : Named(cu.name() + ".ScoreboardCheckStage"),
+      computeUnit(cu),
       toSchedule(to_schedule),
-      _name(cu.name() + ".ScoreboardCheckStage"),
+      readyCounter(this, "insts / cycle"),
       stats(&cu)
 {}
 
@@ -293,6 +294,8 @@ ScoreboardCheckStage::exec()
                         curWave->nextInstr()->seqNum(),
                         curWave->nextInstr()->disassemble());
                 toSchedule.markWFReady(curWave, exeResType);
+
+                ++readyCounter;
             } else {
                 curWave->lastInstRdyStatus = rdyStatusStr(rdyStatus);
             }

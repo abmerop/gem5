@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/perfetto.hh"
 #include "base/statistics.hh"
 #include "base/stats/group.hh"
 
@@ -58,7 +59,7 @@ struct ComputeUnitParams;
  * for execution. After analysis, the ready waves are
  * added to readyList.
  */
-class ScoreboardCheckStage
+class ScoreboardCheckStage : public Named
 {
   public:
     enum nonrdytype_e
@@ -81,13 +82,6 @@ class ScoreboardCheckStage
     ~ScoreboardCheckStage();
     void exec();
 
-    // Stats related variables and methods
-    const std::string &
-    name() const
-    {
-        return _name;
-    }
-
   private:
     void collectStatistics(nonrdytype_e rdyStatus);
     int mapWaveToExeUnit(Wavefront *w);
@@ -101,8 +95,6 @@ class ScoreboardCheckStage
      * information needed by the schedule stage.
      */
     ScoreboardCheckToSchedule &toSchedule;
-
-    const std::string _name;
 
     std::string
     rdyStatusStr(const nonrdytype_e &rdyStatus)
@@ -132,6 +124,8 @@ class ScoreboardCheckStage
                 return "UNKNOWN";
         };
     }
+
+    PerfettoCounter readyCounter;
 
   protected:
     struct ScoreboardCheckStageStats : public statistics::Group

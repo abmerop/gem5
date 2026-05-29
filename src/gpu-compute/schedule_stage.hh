@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/perfetto.hh"
 #include "base/statistics.hh"
 #include "base/stats/group.hh"
 #include "gpu-compute/exec_stage.hh"
@@ -59,7 +60,7 @@ class Wavefront;
 
 struct ComputeUnitParams;
 
-class ScheduleStage
+class ScheduleStage : public Named
 {
   public:
     ScheduleStage(const ComputeUnitParams &p, ComputeUnit &cu,
@@ -69,12 +70,6 @@ class ScheduleStage
     void init();
     void exec();
 
-    // Stats related variables and methods
-    const std::string &
-    name() const
-    {
-        return _name;
-    }
     enum SchNonRdyType
     {
         SCH_SCALAR_ALU_NRDY,
@@ -134,8 +129,6 @@ class ScheduleStage
     // scheduler and a dispatch list
     std::vector<Scheduler> scheduler;
 
-    const std::string _name;
-
     // called by exec() to add a wave to schList if the RFs can support it
     bool addToSchList(int exeType, const GPUDynInstPtr &gpu_dyn_inst);
     // re-insert a wave to schList if wave lost arbitration
@@ -187,6 +180,8 @@ class ScheduleStage
     // the VRF/SRF availability or limits imposed by paremeters (to be added)
     // of the SCH stage or CU.
     std::vector<std::deque<std::pair<GPUDynInstPtr, SCH_STATUS>>> schList;
+
+    PerfettoCounter scheduledCounter;
 
   protected:
     struct ScheduleStageStats : public statistics::Group

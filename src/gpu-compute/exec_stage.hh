@@ -37,6 +37,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/perfetto.hh"
 #include "base/statistics.hh"
 #include "base/stats/group.hh"
 
@@ -70,7 +71,7 @@ enum DISPATCH_STATUS
 // adding a wave into each execution resource's
 // dispatch list.
 
-class ExecStage
+class ExecStage : public Named
 {
   public:
     ExecStage(const ComputeUnitParams &p, ComputeUnit &cu,
@@ -81,12 +82,6 @@ class ExecStage
 
     std::string dispStatusToStr(int j);
     void dumpDispList();
-
-    const std::string &
-    name() const
-    {
-        return _name;
-    }
 
   private:
     void collectStatistics(enum STAT_STATUS stage, int unitId);
@@ -99,7 +94,8 @@ class ExecStage
     bool instrExecuted;
     int executionResourcesUsed;
     uint64_t idle_dur;
-    const std::string _name;
+
+    PerfettoCounter execWaves;
 
   protected:
     struct ExecStageStats : public statistics::Group

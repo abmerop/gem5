@@ -38,9 +38,10 @@ namespace gem5
 {
 
 FetchStage::FetchStage(const ComputeUnitParams &p, ComputeUnit &cu)
-    : numVectorALUs(p.num_SIMDs),
+    : Named(cu.name() + ".FetchStage"),
+      numVectorALUs(p.num_SIMDs),
       computeUnit(cu),
-      _name(cu.name() + ".FetchStage"),
+      fetchedInsts(this, "isnts"),
       stats(&cu)
 {
     for (int j = 0; j < numVectorALUs; ++j) {
@@ -66,9 +67,24 @@ FetchStage::init()
 void
 FetchStage::exec()
 {
+    auto pre_ib_size = 0;
+    for (int j = 0; j < numVectorALUs; ++j) {
+        for (auto &wave : computeUnit.wfList[j]) {
+            pre_ib_size += wave->instructionBuffer.size();
+        }
+    }
+
     for (int j = 0; j < numVectorALUs; ++j) {
         _fetchUnit[j].exec();
     }
+
+    auto post_ib_size = 0;
+    for (int j = 0; j < numVectorALUs; ++j) {
+        for (auto &wave : computeUnit.wfList[j]) {
+            post_ib_size += wave->instructionBuffer.size();
+        }
+    }
+    fetchedInsts += (post_ib_size - pre_ib_size);
 }
 
 void

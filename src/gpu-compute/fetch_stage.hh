@@ -35,6 +35,7 @@
 #include <string>
 #include <vector>
 
+#include "base/perfetto.hh"
 #include "base/statistics.hh"
 #include "base/stats/group.hh"
 #include "gpu-compute/fetch_unit.hh"
@@ -51,7 +52,7 @@ namespace gem5
 class ComputeUnit;
 class Wavefront;
 
-class FetchStage
+class FetchStage : public Named
 {
   public:
     FetchStage(const ComputeUnitParams &p, ComputeUnit &cu);
@@ -61,12 +62,6 @@ class FetchStage
     void processFetchReturn(PacketPtr pkt);
     void fetch(PacketPtr pkt, Wavefront *wave);
 
-    // Stats related variables and methods
-    const std::string &
-    name() const
-    {
-        return _name;
-    }
     FetchUnit &
     fetchUnit(int simdId)
     {
@@ -80,7 +75,8 @@ class FetchStage
     // List of fetch units. A fetch unit is
     // instantiated per VALU/SIMD
     std::vector<FetchUnit> _fetchUnit;
-    const std::string _name;
+
+    PerfettoCounter fetchedInsts;
 
   protected:
     struct FetchStageStats : public statistics::Group
