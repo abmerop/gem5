@@ -36,6 +36,7 @@
 #include <cassert>
 #include <cstdint>
 
+#include "base/perfetto.hh"
 #include "gpu-compute/pool_manager.hh"
 #include "params/DynPoolManager.hh"
 
@@ -46,9 +47,11 @@ namespace gem5
 class DynPoolManager : public PoolManager
 {
   public:
-    DynPoolManager(const PoolManagerParams &p) : PoolManager(p), _regionSize(0)
+    DynPoolManager(const PoolManagerParams &p)
+        : PoolManager(p), _regionSize(0), freeGPRs(this, "free")
     {
         _totRegSpaceAvailable = p.pool_size;
+        freeGPRs = _totRegSpaceAvailable;
     }
 
     uint32_t allocateRegion(const uint32_t size,
@@ -71,6 +74,8 @@ class DynPoolManager : public PoolManager
     int reservedSpaceRecord;
     // total registers to be allocated -- treat as a const
     int totalRegSpace;
+
+    PerfettoCounter freeGPRs;
 };
 
 } // namespace gem5

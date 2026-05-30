@@ -153,6 +153,7 @@ DynPoolManager::allocateRegion(const uint32_t size, uint32_t *reservedPoolSize)
             "totRegSpace %d allocating Register at %d and"
             " size %d\n",
             _totRegSpaceAvailable, startIdx, actualSize);
+    freeGPRs = _totRegSpaceAvailable;
     return startIdx;
 }
 
@@ -192,6 +193,7 @@ DynPoolManager::freeRegion(uint32_t firstIdx, uint32_t lastIdx)
 
     // remove corresponding entry from reservedSpaceRecord too
     --reservedSpaceRecord;
+    freeGPRs = _totRegSpaceAvailable;
 }
 
 uint32_t
