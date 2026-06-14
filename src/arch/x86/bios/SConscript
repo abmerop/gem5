@@ -81,7 +81,13 @@ SimObject(
     sim_objects=['X86ACPISysDescTable', 'X86ACPIRSDT', 'X86ACPIXSDT',
                  'X86ACPIMadtRecord', 'X86ACPIMadt', 'X86ACPIMadtLAPIC',
                  'X86ACPIMadtIOAPIC', 'X86ACPIMadtIntSourceOverride',
-                 'X86ACPIMadtNMI', 'X86ACPIMadtLAPICOverride', 'X86ACPIRSDP'],
+                 'X86ACPIMadtNMI', 'X86ACPIMadtLAPICOverride', 'X86ACPIRSDP',
+                 'X86ACPIFADT', 'X86ACPIDSDT'],
     tags=['x86 isa']
 )
 Source('acpi.cc', tags=['x86 isa'])
+
+# Embed the precompiled DSDT AML blob (dsdt.aml) so the FADT can point the
+# guest at a DSDT and keep ACPI enabled. iasl is not needed to build gem5; see
+# dsdt.asl for the source and regeneration instructions.
+Source(env.Blob('dsdt_aml', 'dsdt.aml')[0], tags=['x86 isa'])

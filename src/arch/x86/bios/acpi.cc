@@ -41,6 +41,7 @@
 #include <cassert>
 #include <cstring>
 
+#include "arch/x86/bios/dsdt_aml.hh"
 #include "base/trace.hh"
 #include "mem/port.hh"
 #include "mem/port_proxy.hh"
@@ -138,6 +139,78 @@ RSDP::write(PortProxy& phys_proxy, Allocator& alloc) const
     phys_proxy.writeBlob(addr, mem.data(), mem.size());
 
     return addr;
+}
+
+//// DSDT
+DSDT::DSDT(const Params &p) : SimObject(p)
+{}
+
+Addr
+DSDT::write(PortProxy &phys_proxy, Allocator &alloc) const
+{
+    // The embedded blob is a complete ACPI table (header + AML body), so it is
+    // written verbatim.
+    Addr addr = alloc.alloc(Blobs::dsdt_aml_len, 16);
+    phys_proxy.writeBlob(addr, Blobs::dsdt_aml, Blobs::dsdt_aml_len);
+    DPRINTF(ACPI, "Wrote DSDT (%d bytes) @ %#x\n", Blobs::dsdt_aml_len, addr);
+    return addr;
+}
+
+//// FADT
+FADT::FADT(const Params &p)
+    : SysDescTable(p, "FACP", 6), dsdt(p.dsdt), hwReduced(p.hw_reduced)
+{}
+
+Addr
+FADT::writeBuf(PortProxy &phys_proxy, Allocator &alloc,
+               std::vector<uint8_t> &mem) const
+{
+    assert(mem.empty());
+    mem.resize(sizeof(Mem));
+
+    Mem *data = reinterpret_cast<Mem *>(mem.data());
+
+    // Write the DSDT first and point this FADT at it. The guest finds the DSDT
+    // exclusively through these pointers, not via the RSDT/XSDT.
+    if (dsdt) {
+        Addr dsdt_addr = dsdt->write(phys_proxy, alloc);
+        data->dsdt = static_cast<uint32_t>(dsdt_addr);
+        data->xDsdt = dsdt_addr;
+        DPRINTF(ACPI, "FADT: DSDT @ %#x\n", dsdt_addr);
+    }
+
+    // gem5 models legacy timers (PIT/RTC) but not the ACPI PM/GPE/SCI register
+    // blocks. Advertise legacy devices so the guest keeps using the PIT, and
+    // leave SMI_CMD/ACPI_ENABLE zero so ACPICA skips the SMI enable handshake
+    // (it treats ACPI as already enabled and never pokes the unmodeled
+    // registers). A non-zero SCI interrupt that does not collide with the PIT
+    // (IRQ0) avoids the ACPI SCI being wired onto the timer line.
+    //
+    // Note: hardware-reduced ACPI is deliberately NOT the default here. In
+    // that mode the guest assumes there is no legacy PIT/PM timer and, with no
+    // HPET available either, ends up with no usable clocksource and hangs
+    // during boot.
+    data->sciInt = 9;
+    data->iapcBootArch = 0x3; // LEGACY_DEVICES | 8042
+
+    // A non-reduced FADT must advertise valid PM1 event/control register
+    // blocks; ACPICA rejects a zero address with AE_BAD_ADDRESS and aborts
+    // ACPI initialization. gem5 does not model these registers, so point them
+    // at an otherwise-unused I/O port range. Accesses land in the platform's
+    // I/O catch-all (reads return 0, writes are dropped), which is exactly
+    // what fixed-event setup needs (it only writes to disable events). The PM
+    // timer block is deliberately left zero so the guest keeps using the
+    // PIT-backed jiffies clocksource rather than a non-advancing PM timer.
+    data->pm1aEvtBlk = 0x600;
+    data->pm1EvtLen = 4;
+    data->pm1aCntBlk = 0x604;
+    data->pm1CntLen = 2;
+
+    if (hwReduced) {
+        data->flags |= (1u << 20); // HW_REDUCED_ACPI
+    }
+
+    return SysDescTable::writeBuf(phys_proxy, alloc, mem);
 }
 
 Addr

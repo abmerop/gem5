@@ -137,6 +137,32 @@ class X86ACPIMadtLAPICOverride(X86ACPIMadtRecord):
     address = Param.Addr(0, "64-bit Physical Address of Local APIC")
 
 
+# Differentiated System Description Table. The AML bytecode is embedded at
+# build time from src/arch/x86/bios/dsdt.aml; the OS interprets it, gem5 does
+# not.
+class X86ACPIDSDT(SimObject):
+    type = "X86ACPIDSDT"
+    cxx_class = "gem5::X86ISA::ACPI::DSDT"
+    cxx_header = "arch/x86/bios/acpi.hh"
+
+
+# Fixed ACPI Description Table. Points at the DSDT so the guest keeps ACPI
+# enabled. Marked hardware-reduced so the guest does not poke power-management
+# registers gem5 does not model.
+class X86ACPIFADT(X86ACPISysDescTable):
+    type = "X86ACPIFADT"
+    cxx_class = "gem5::X86ISA::ACPI::FADT"
+    cxx_header = "arch/x86/bios/acpi.hh"
+
+    dsdt = Param.X86ACPIDSDT(
+        X86ACPIDSDT(), "differentiated system description table"
+    )
+    # Hardware-reduced ACPI is unsuitable for gem5's x86 platform: it makes the
+    # guest discard the legacy PIT/PM timer and, with no HPET available, leaves
+    # it without a clocksource (boot hangs). Keep it off.
+    hw_reduced = Param.Bool(False, "set the HW_REDUCED_ACPI flag")
+
+
 # Root System Description Pointer Structure
 class X86ACPIRSDP(SimObject):
     type = "X86ACPIRSDP"
