@@ -36,7 +36,11 @@ from typing import (
     Tuple,
 )
 
-from m5.objects import X86E820Entry
+from m5.objects import (
+    X86ACPIDSDT,
+    X86ACPIFADT,
+    X86E820Entry,
+)
 from m5.params import (
     AddrRange,
     Port,
@@ -195,6 +199,10 @@ class ViperBoard(X86Board):
             "drm_kms_helper.fbdev_emulation=0",
             "modprobe.blacklist=amdgpu",
             "modprobe.blacklist=psmouse",
+            # gem5's DSDT does not describe a PCI root bridge / _PRT, so route
+            # PCI IRQs via the MP table (legacy) rather than ACPI. ACPI core
+            # stays enabled (needed so the wmi module, and thus amdgpu, load).
+            "pci=noacpi",
         ]
 
     def get_low_mem_ports(self) -> Sequence[Tuple[AddrRange, Port]]:
@@ -220,6 +228,14 @@ class ViperBoard(X86Board):
         # Call the base class which handles many more things and then
         # overwrite the e820 table for our memory ranges.
         super()._setup_io_devices()
+
+        # FADT pointing at a minimal DSDT. This keeps ACPI enabled in the guest
+        # (ACPICA disables ACPI if there is no DSDT), which is required for
+        # modules that hard-depend on ACPI such as the WMI driver (and thus
+        # amdgpu).
+        fadt = X86ACPIFADT(dsdt=X86ACPIDSDT(), oem_id="gem5")
+        self.workload.acpi_description_table_pointer.rsdt.entries.append(fadt)
+        self.workload.acpi_description_table_pointer.xsdt.entries.append(fadt)
 
         entries = [
             # Mark the first megabyte of memory as reserved
