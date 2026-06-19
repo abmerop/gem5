@@ -403,10 +403,11 @@ X86ISA::Interrupts::getIntAddrRange() const
 uint32_t
 X86ISA::Interrupts::readReg(ApicRegIndex reg)
 {
-    if (reg >= APIC_TRIGGER_MODE(0) &&
-            reg <= APIC_TRIGGER_MODE(15)) {
-        panic("Local APIC Trigger Mode registers are unimplemented.\n");
-    }
+    // The Trigger Mode registers are a read-only bitmap reflecting the trigger
+    // mode of in-service interrupts. The bits are maintained in
+    // requestInterrupt() via APIC_TRIGGER_MODE_BASE, so let the read fall
+    // through to return regs[reg]. The OS reads these when handling
+    // level-triggered interrupts (e.g. on PCI INTx EOI).
     switch (reg) {
       case APIC_ARBITRATION_PRIORITY:
         panic("Local APIC Arbitration Priority register unimplemented.\n");
