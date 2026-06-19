@@ -39,7 +39,11 @@ from typing import (
 from m5.objects import (
     X86ACPIDSDT,
     X86ACPIFADT,
+    EtherDump,
+    EtherLink,
+    IGbE_e1000,
     X86E820Entry,
+    X86IntelMPIOIntAssignment,
 )
 from m5.params import (
     AddrRange,
@@ -84,6 +88,9 @@ class ViperBoard(X86Board):
         memory: AbstractMemorySystem,
         cache_hierarchy: AbstractCacheHierarchy,
         gpus: Optional[List[BaseViperGPU]] = None,
+        host_tap: bool = False,
+        tap_device_name: str = "gem5-tap",
+        net_pcap_file: Optional[str] = None,
     ) -> None:
         super().__init__(
             clk_freq=clk_freq,
@@ -102,6 +109,13 @@ class ViperBoard(X86Board):
         )
 
         self.gpus = gpus
+
+        # Optional host network access via a TAP device (see
+        # _attach_host_network). Disabled by default; most GPU runs do not
+        # need it and creating the tap requires a HAVE_TUNTAP build + root.
+        self._host_tap = host_tap
+        self._tap_device_name = tap_device_name
+        self._net_pcap_file = net_pcap_file
 
     @overrides(AbstractCacheHierarchy)
     def get_coherence_protocol(self):
@@ -227,6 +241,12 @@ class ViperBoard(X86Board):
         # overwrite the e820 table for our memory ranges.
         super()._setup_io_devices()
 
+        # Optionally bridge a simulated NIC to a host TAP device so the guest
+        # can reach the host (and, with host-side NAT, the internet). Must run
+        # after super() so the base X86Board MP table already exists.
+        if self._host_tap:
+            self._attach_host_network()
+
         # FADT pointing at a minimal DSDT. This prevents Linux from disabling
         # ACPI which is needed by the WMI module which is a dependency for
         # the amdgpu module.
@@ -261,6 +281,75 @@ class ViperBoard(X86Board):
         )
 
         self.workload.e820_table.entries = entries
+
+    # Free PCI slot + IO-APIC input for the NIC. Device 4 is the south-bridge
+    # IDE controller and Viper GPUs start at device 8 (BaseViperGPU), so 5 is
+    # free. IO-APIC pins 0-15 are ISA IRQs and pin 16 is the IDE PCI route set
+    # up by X86Board, so pin 17 is free.
+    _NIC_PCI_DEV = 5
+    _NIC_IOAPIC_PIN = 17
+
+    def _attach_host_network(self):
+        """Attach an Intel e1000 NIC bridged to a host TAP device.
+
+        Requires gem5 built with HAVE_TUNTAP; creating the host tap device
+        requires CAP_NET_ADMIN. On the host, bring up the tap and (for
+        internet access) NAT it to a real uplink. In the guest, configure the
+        NIC interface with an address on the tap's subnet and a default route
+        via the tap.
+
+        Must be called from _setup_io_devices() *after* super() so the base
+        X86Board MP table already exists (this board boots with pci=noacpi, so
+        Linux uses the MP table -- not ACPI -- for PCI IRQ routing).
+        """
+        # EtherTap only exists in m5.objects when built with HAVE_TUNTAP, so
+        # import it lazily to avoid breaking non-TUNTAP builds at module load.
+        try:
+            from m5.objects import EtherTap
+        except ImportError:
+            raise RuntimeError(
+                "host_tap=True requires gem5 to be built with HAVE_TUNTAP "
+                "(the EtherTap SimObject is unavailable in this build)."
+            )
+
+        # Simulated NIC. GenericPciHost posts the interrupt on IO-APIC pin ==
+        # InterruptLine, so InterruptLine must match the MP-table route below.
+        self.ethernet = IGbE_e1000(
+            pci_dev=self._NIC_PCI_DEV,
+            pci_func=0,
+            InterruptLine=self._NIC_IOAPIC_PIN,
+            InterruptPin=1,
+        )
+        # Wires PCI config space plus the device's pio and dma ports.
+        self.pc.attachPciDevice(self.ethernet)
+
+        # Declare the (dev, INTA) -> IO-APIC pin route in the MP table so the
+        # guest can program the IO-APIC for the NIC. Assign as a named child
+        # first so gem5 parents it; an entry only placed into the vector stays
+        # an orphan and fails to instantiate.
+        self.workload.intel_mp_table.nic_int_entry = X86IntelMPIOIntAssignment(
+            interrupt_type="INT",
+            polarity="ConformPolarity",
+            trigger="ConformTrigger",
+            source_bus_id=0,
+            source_bus_irq=0 + (self._NIC_PCI_DEV << 2),
+            dest_io_apic_id=self.pc.south_bridge.io_apic.apic_id,
+            dest_io_apic_intin=self._NIC_IOAPIC_PIN,
+        )
+        self.workload.intel_mp_table.base_entries = list(
+            self.workload.intel_mp_table.base_entries
+        ) + [self.workload.intel_mp_table.nic_int_entry]
+
+        # Bridge the NIC to the host's network via the tap device.
+        self.ethertap = EtherTap(tap_device_name=self._tap_device_name)
+        self.etherlink = EtherLink()
+        self.etherlink.int0 = self.ethernet.interface
+        self.etherlink.int1 = self.ethertap.tap
+
+        # Optional pcap capture of all traffic on the link for debugging.
+        if self._net_pcap_file is not None:
+            self.etherdump = EtherDump(file=self._net_pcap_file)
+            self.etherlink.dump = self.etherdump
 
     @overrides(KernelDiskWorkload)
     def _set_readfile_contents(self, readfile_contents):
