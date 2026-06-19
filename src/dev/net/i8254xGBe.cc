@@ -108,18 +108,25 @@ IGbE::IGbE(const Params &p)
     // clear all 64 16 bit words of the eeprom
     memset(&flash, 0, EEPROM_SIZE * 2);
 
-    // Set the MAC address
+    // Set the MAC address in EEPROM words 0-2. The driver reconstructs the
+    // address taking byte 2*x from the low byte of word x and byte 2*x+1 from
+    // the high byte, i.e. the words are little-endian. Copy the address bytes
+    // in and convert each word from little-endian to host order.
     memcpy(flash, p.hardware_address.bytes(), ETH_ADDR_LEN);
     for (int x = 0; x < ETH_ADDR_LEN / 2; x++)
-        flash[x] = htobe(flash[x]);
+        flash[x] = letoh(flash[x]);
 
+    // Set the checksum word so that the 16-bit sum of all EEPROM words equals
+    // EEPROM_CSUM (0xBABA), which is what the driver validates. The sum must
+    // be taken over the word values exactly as the driver reads them back,
+    // i.e. the values stored in flash[] (no extra byteswap).
     uint16_t csum = 0;
-    for (int x = 0; x < EEPROM_SIZE; x++)
-        csum += htobe(flash[x]);
-
+    for (int x = 0; x < EEPROM_SIZE - 1; x++) {
+        csum += flash[x];
+    }
 
     // Magic happy checksum value
-    flash[EEPROM_SIZE - 1] = htobe((uint16_t)(EEPROM_CSUM - csum));
+    flash[EEPROM_SIZE - 1] = (uint16_t)(EEPROM_CSUM - csum);
 
     // Store the MAC address as queue ID
     macAddr = p.hardware_address;
