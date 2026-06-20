@@ -112,6 +112,29 @@ parser.add_argument(
     help="Use KVM perf counters to give accurate GPU insts/cycles with KVM",
 )
 
+# For this to work, the host needs to create a TAP (once per reboot of host),
+# setup NAT forwarding, and iptables. These require sudo:
+#
+# Create a tap your user owns, so gem5 runs without root
+# `sudo ip tuntap add dev gem5-tap mode tap user $USER`
+# `sudo ip addr add 192.168.100.1/24 dev gem5-tap`
+# `sudo ip link set gem5-tap up`
+#
+# Only if you want INTERNET (not just host) — NAT to your real uplink:
+# `sudo sysctl -w net.ipv4.ip_forward=1`
+# `sudo iptables -t nat -A POSTROUTING -o <uplink-iface> -j MASQUERADE`
+# `sudo iptables -A FORWARD -i gem5-tap -o <uplink-iface> -j ACCEPT`
+# `sudo iptables -A FORWARD -i <uplink-iface> -o gem5-tap \
+#               -m state --state RELATED,ESTABLISHED -j ACCEPT`
+# Replace <uplink-iface> with your host's outbound NIC (e.g. eth0/eno1).
+# You can use the provided ./net_test.sh for --app to test the setup.
+parser.add_argument(
+    "--internet",
+    default=False,
+    action="store_true",
+    help="Setup internet through host TAP",
+)
+
 args = parser.parse_args()
 
 memory = SingleChannelDDR4_2400(size="8GiB")
@@ -133,6 +156,7 @@ board = ViperBoard(
     memory=memory,
     cache_hierarchy=ViperCPUCacheHierarchy(),
     gpus=[gpu0],
+    host_tap=args.internet,
 )
 
 
